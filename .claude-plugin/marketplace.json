@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Blog marketing skills for Claude Code: SEO + GEO optimization of blog posts, built on top of the aaron-marketing skill pack.",
-    "version": "0.3.2"
+    "version": "0.4.0"
   },
   "plugins": [
     {
       "name": "blog-marketing",
       "source": "./",
       "description": "Optimize a local blog post (HTML or Markdown) for SEO and GEO (AI-citation readiness): diagnose, rewrite content blocks and run a Gemini-targeted GEO pass via aaron-marketing skills, write the file back safely (backup + integrity checks, fail-closed), and emit a change report. Supports full HTML documents, body fragments, and Markdown with YAML front matter.",
-      "version": "0.3.2",
+      "version": "0.4.0",
       "category": "marketing",
       "tags": [
         "seo",

@@ -2,7 +2,7 @@
 
 Claude Code skills that optimize blog posts for **SEO** (Google rankings) and **GEO** (getting cited by AI engines like Gemini). Built on top of the open-source [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) skill pack: this plugin orchestrates its auditing/writing skills and adds a deterministic, fail-closed engine for safely editing your HTML or Markdown files in place.
 
-> **Status: v0.3.** One skill, `blog-seo-geo`. See [Scope](#scope-v03) for exactly what it does and refuses to do.
+> **Status: v0.4.** One skill, `blog-seo-geo`. See [Scope](#scope-v04) for exactly what it does and refuses to do.
 
 ## What it does
 
@@ -49,7 +49,9 @@ Then, inside your blog project:
 
 Try it on the bundled sample first: copy `examples/sample-post.html` somewhere and run the command on it.
 
-## Scope (v0.3)
+After `/plugin update blog-marketing`, restart Claude Code (or run `/reload-plugins`) — a session keeps using the previously loaded version until then. The skill states its version at the end of every run summary so a stale cache is immediately visible.
+
+## Scope (v0.4)
 
 | | |
 |---|---|
@@ -65,8 +67,14 @@ Try it on the bundled sample first: copy `examples/sample-post.html` somewhere a
 - **Write whitelist**: only your input file (after backups land in `.seo-optimizer/backups/`), the report file, and temp files. Nothing else is touched — not even your `.gitignore` (the skill suggests the ignore line; you add it).
 - **Fail-closed**: unknown blocks, lost links/images, structural damage, or the file changing mid-run ⇒ the plan is rejected and **nothing is written**.
 - **Byte-exact splicing**: unedited regions of your file are byte-identical by construction — the document is never re-serialized. In markdown, code fences and embedded HTML are structurally non-editable.
-- **No fabrication**: rewrites reorganize and tighten what the post already says; new facts, stats, or claims are out of bounds.
+- **Number guard**: any figure appearing in a rewrite that does not exist somewhere in the original document causes the whole plan to be refused (integers 0–10 exempt, so "eight steps" → "8 steps" still works). Fabricated or digit-transposed statistics cannot reach your file — this is mechanically enforced, not a prompt promise.
+- **Coverage honesty**: every run reports what fraction of the visible body text the parser recognized as content blocks; below 70% the report opens with an explicit partial-coverage disclaimer instead of presenting a partial diagnosis as a full one.
+- **No fabrication**: rewrites reorganize and tighten what the post already says; new facts, stats, or claims are out of bounds (and for numbers, mechanically refused — see above).
 - Scripts are Python stdlib only — no pip installs, no network access.
+
+## About the mechanical score
+
+The score is a deterministic **heuristic baseline** — conventional checks (title length, keyword placement, heading hierarchy, alt text), not a measure of editorial quality. A deliberately unconventional choice (say, a curiosity-driven data-study headline instead of a keyword-led one) can be the right call for your page while costing points here. Treat sub-100 as "worth a look", not "must fix"; the skill itself is instructed to leave strong content alone.
 
 ## Roadmap
 

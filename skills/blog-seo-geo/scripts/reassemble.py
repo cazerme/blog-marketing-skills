@@ -31,6 +31,7 @@ import datetime
 import html as htmllib
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -45,6 +46,47 @@ def fail(code, report, msg):
     json.dump(report, sys.stdout, indent=2, ensure_ascii=False)
     print()
     return code
+
+
+NUM_RE = re.compile(r"\d[\d,\.]*")
+ENTITY_RE = re.compile(r"&#x?[0-9a-fA-F]+;")
+
+
+def _canonical_numbers(text):
+    """Digit sequences, comma-stripped, trailing punctuation trimmed."""
+    out = set()
+    for m in NUM_RE.finditer(ENTITY_RE.sub(" ", text)):
+        tok = m.group(0).rstrip(".,").replace(",", "")
+        if tok:
+            out.add(tok)
+    return out
+
+
+def check_numbers(source, plan, report):
+    """Fabrication guard: every number a rewrite introduces must already
+    exist somewhere in the original document. Statistics are where
+    fabrication hurts most AND where checking is purely mechanical.
+    Integers 0-10 are exempt (legitimate word-to-digit rewrites like
+    "eight steps" -> "8 steps")."""
+    allowed = _canonical_numbers(source)
+    pieces = []
+    for e in plan.get("block_edits", []):
+        pieces.append(("block_edit %s" % e.get("block_id"),
+                       e.get("new_content") or e.get("new_inner_html") or ""))
+    for ins in plan.get("insertions", []):
+        pieces.append(("insertion after %s" % ins.get("after_block_id"),
+                       ins.get("html", "")))
+    meta = plan.get("meta_edits") or {}
+    for k in ("title", "meta_description"):
+        if meta.get(k):
+            pieces.append(("meta_edits.%s" % k, meta[k]))
+    for where, text in pieces:
+        for num in sorted(_canonical_numbers(text) - allowed):
+            if num.isdigit() and int(num) <= 10:
+                continue
+            report["violations"].append(
+                "fabricated or altered number %r in %s — not found in the "
+                "original document" % (num, where))
 
 
 def build_splices(model, plan, report):
@@ -208,6 +250,7 @@ def main(argv=None):
         # empty plan is legal: round-trip no-op, used by tests
         pass
 
+    check_numbers(source, plan, report)
     splices = build_splices(model, plan, report)
     if splices is None:
         return fail(5, report, "plan rejected — nothing written")

@@ -1,6 +1,6 @@
 {
   "name": "blog-marketing",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Optimize a local blog post (HTML or Markdown) for SEO and GEO (AI-citation readiness) by orchestrating aaron-marketing skills: diagnose, rewrite content blocks, run a Gemini-targeted GEO pass, build head markup, write the file back safely, and emit a change report. Supports full HTML documents, body fragments (template-driven blogs), and Markdown posts with YAML front matter (Jekyll/Hugo/GitHub Pages); code fences and embedded HTML are never touched. Deterministic parsing/write-back is handled by dependency-free Python scripts; editorial judgment is delegated to aaron-marketing sub-skills.",
   "author": {
     "name": "cazerme",

@@ -293,6 +293,16 @@ def run_checks(model, keyword=None):
         add("kw_opening", "pass" if kw in opening else "fail",
             "keyword in first 100 words: %s" % (kw in opening), 3)
 
+    # coverage honesty indicator: weight 0 — informs, never scores
+    ratio = model.get("stats", {}).get("capture_ratio", 1.0)
+    pct = round(ratio * 100)
+    if ratio < 0.7:
+        add("capture", "warn",
+            "only %d%% of visible body text was recognized as content blocks — "
+            "diagnosis and edits cover that portion only" % pct, 0)
+    else:
+        add("capture", "pass", "%d%% of visible body text captured" % pct, 0)
+
     scored = [c for c in checks if c["status"] != "skipped"]
     earned = sum({"pass": 1.0, "warn": 0.5, "fail": 0.0}[c["status"]] * c["weight"] for c in scored)
     total = sum(c["weight"] for c in scored) or 1
@@ -313,9 +323,14 @@ def _finish_model(model, source, keyword):
         "word_count": model["stats"]["word_count"],
         "block_count": len(model["blocks"]),
         "editable_count": sum(1 for b in model["blocks"] if b["editable"]),
+        "capture_ratio": model["stats"].get("capture_ratio", 1.0),
     }
     model["mechanical"] = run_checks(model, keyword=keyword)
     return model
+
+
+def _collapse(text):
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _build_model_html(source, source_path, keyword):
@@ -329,6 +344,10 @@ def _build_model_html(source, source_path, keyword):
         raise ValueError("no editable article content found — is this a build "
                          "artifact / SPA shell rather than a static blog post?")
     words = re.findall(r"[A-Za-z0-9'À-ɏ-]+", " ".join(parser.body_text_parts))
+    # coverage honesty: how much of the visible body text landed in blocks
+    body_text = _collapse(" ".join(parser.body_text_parts))
+    captured = _collapse(" ".join(b["text"] for b in parser.blocks))
+    ratio = 1.0 if not body_text else min(1.0, round(len(captured) / len(body_text), 3))
     return _finish_model({
         "source_path": source_path,
         "format": "html",
@@ -337,7 +356,7 @@ def _build_model_html(source, source_path, keyword):
         "blocks": parser.blocks,
         "links": parser.links,
         "images": parser.images,
-        "stats": {"word_count": len(words)},
+        "stats": {"word_count": len(words), "capture_ratio": ratio},
     }, source, keyword)
 
 
@@ -367,7 +386,9 @@ def _build_model_md(source, source_path, keyword):
         "blocks": blocks,
         "links": links,
         "images": images,
-        "stats": {"word_count": len(words)},
+        # markdown has no skip containers and a paragraph catch-all:
+        # every non-blank line lands in some block by construction
+        "stats": {"word_count": len(words), "capture_ratio": 1.0},
     }, source, keyword)
 
 

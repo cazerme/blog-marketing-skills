@@ -160,6 +160,121 @@ class SpineTest(unittest.TestCase):
         self.assertEqual(self.current(), self.original())
 
 
+class NumberGuardTest(unittest.TestCase):
+    """Fabrication guard: numbers a rewrite introduces must already exist in
+    the original document; integers 0-10 are exempt (word-to-digit rewrites)."""
+
+    HTML = """<!DOCTYPE html>
+<html><head><title>Number guard fixture page for the engine tests</title>
+<meta name="description" content="A fixture with real statistics so the number fabrication guard has something concrete to verify against.">
+</head><body><article>
+<h1>Our eight test campaigns, measured</h1>
+<p>Across all campaigns we sent 1,533,399 messages and saw a 1.24% response rate overall.</p>
+<p>The best campaign converted at 4.5% while the median stayed near the overall figure.</p>
+<p>A closing paragraph so several editable blocks exist for the tests below.</p>
+</article></body></html>
+"""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.post = os.path.join(self.dir, "post.html")
+        with open(self.post, "w") as f:
+            f.write(self.HTML)
+        r = run("extract.py", self.post, "--out", os.path.join(self.dir, "m.json"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(os.path.join(self.dir, "m.json")) as f:
+            self.model = json.load(f)
+        self.paras = [b for b in self.model["blocks"] if b["tag"] == "p"]
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def apply(self, **kwargs):
+        p = os.path.join(self.dir, "plan.json")
+        with open(p, "w") as f:
+            json.dump({"source_sha256": self.model["source_sha256"], **kwargs}, f)
+        return run("reassemble.py", self.post, p, "--write")
+
+    def test_fabricated_number_refused(self):
+        r = self.apply(block_edits=[{"block_id": self.paras[2]["id"],
+                                     "new_content": "Studies show 95% of campaigns fail."}])
+        self.assertEqual(r.returncode, 5)
+        self.assertIn("fabricated or altered number '95'", r.stdout)
+        with open(self.post) as f:
+            self.assertEqual(f.read(), self.HTML)
+
+    def test_digit_transposition_refused(self):
+        r = self.apply(block_edits=[{"block_id": self.paras[0]["id"],
+                                     "new_content": "We saw a 1.42% response rate overall."}])
+        self.assertEqual(r.returncode, 5)
+        self.assertIn("'1.42'", r.stdout)
+
+    def test_restating_existing_numbers_across_blocks_passes(self):
+        r = self.apply(block_edits=[{"block_id": self.paras[2]["id"],
+                                     "new_content": "In short: 1,533,399 messages, a 1.24% response rate, and a 4.5% best case."}])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_comma_variant_of_existing_number_passes(self):
+        r = self.apply(block_edits=[{"block_id": self.paras[2]["id"],
+                                     "new_content": "That is 1533399 messages in total."}])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_small_integer_word_to_digit_passes(self):
+        r = self.apply(block_edits=[{"block_id": self.paras[2]["id"],
+                                     "new_content": "All 8 campaigns are covered above."}])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_fabricated_number_in_meta_refused(self):
+        r = self.apply(meta_edits={"meta_description":
+            "See how 72% of senders get replies with these campaign statistics."})
+        self.assertEqual(r.returncode, 5)
+        self.assertIn("'72'", r.stdout)
+
+
+class CaptureRatioTest(unittest.TestCase):
+    """Coverage honesty: content the parser cannot classify (e.g. <dl>) must
+    surface as a capture warning instead of a silently partial diagnosis."""
+
+    HALF_INVISIBLE = """<!DOCTYPE html>
+<html><head><title>Capture ratio fixture page for engine tests</title></head>
+<body><article>
+<h1>Visible half</h1>
+<p>Short visible paragraph.</p>
+<dl>
+<dt>Invisible term one</dt><dd>A long definition body that the parser has no rule for, so it never becomes a block and stays entirely outside the model's view of this article.</dd>
+<dt>Invisible term two</dt><dd>Another long definition body, also unindexed, further inflating the amount of visible text that the block list fails to capture for this page.</dd>
+</dl>
+</article></body></html>
+"""
+
+    def _model_for(self, html):
+        d = tempfile.mkdtemp()
+        try:
+            post = os.path.join(d, "post.html")
+            with open(post, "w") as f:
+                f.write(html)
+            r = run("extract.py", post, "--out", os.path.join(d, "m.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(os.path.join(d, "m.json")) as f:
+                return json.load(f)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_dl_heavy_page_warns(self):
+        m = self._model_for(self.HALF_INVISIBLE)
+        self.assertLess(m["stats"]["capture_ratio"], 0.7)
+        checks = {c["id"]: c for c in m["mechanical"]["checks"]}
+        self.assertEqual(checks["capture"]["status"], "warn")
+        self.assertEqual(checks["capture"]["weight"], 0)
+
+    def test_normal_page_passes(self):
+        with open(SAMPLE) as f:
+            m = self._model_for(f.read().replace("</body>", "</body>"))
+        self.assertGreaterEqual(m["stats"]["capture_ratio"], 0.9)
+        checks = {c["id"]: c for c in m["mechanical"]["checks"]}
+        self.assertEqual(checks["capture"]["status"], "pass")
+
+
 class ArticleHeaderTest(unittest.TestCase):
     """Regression: an <h1> inside <article><header> is post content, not site
     chrome (found on a real production page). A site-level <header> outside
