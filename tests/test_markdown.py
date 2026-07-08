@@ -148,6 +148,67 @@ class MarkdownTest(unittest.TestCase):
         self.assertIn("hikes early.\n\n### Quick answer\n\n", self.current())
 
 
+class IndentedCodeTest(unittest.TestCase):
+    """Classic 4-space indented code blocks must be non-editable, while
+    indented lines directly after paragraph text remain lazy continuation."""
+
+    MD = """# Indented code fixture
+
+Intro paragraph explaining the setup steps below in enough words to matter.
+
+    pip install requests
+    python fetch.py --all
+    # not a heading: [not a link](https://fake.example/y)
+
+Text after the code block continues here
+    with a lazily indented continuation line that stays part of the paragraph.
+
+Closing paragraph so the document keeps more than one editable block.
+"""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.post = os.path.join(self.dir, "post.md")
+        with open(self.post, "w") as f:
+            f.write(self.MD)
+        self.model_path = os.path.join(self.dir, "model.json")
+        r = run("extract.py", self.post, "--out", self.model_path)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(self.model_path) as f:
+            self.model = json.load(f)
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_indented_block_is_protected_code(self):
+        codes = [b for b in self.model["blocks"] if b["tag"] == "code"]
+        self.assertEqual(len(codes), 1)
+        self.assertFalse(codes[0]["editable"])
+        self.assertIn("pip install requests", codes[0]["html"])
+        self.assertFalse(any("not a heading" in b["text"] for b in self.model["blocks"]
+                             if b["tag"].startswith("h")))
+        self.assertNotIn("https://fake.example/y",
+                         {l["href"] for l in self.model["links"]})
+
+    def test_lazy_continuation_stays_paragraph(self):
+        p = next(b for b in self.model["blocks"]
+                 if b["tag"] == "p" and "Text after the code block" in b["text"])
+        self.assertTrue(p["editable"])
+        self.assertIn("lazily indented continuation", p["text"])
+
+    def test_editing_indented_code_rejected(self):
+        code = next(b for b in self.model["blocks"] if b["tag"] == "code")
+        p = os.path.join(self.dir, "plan.json")
+        with open(p, "w") as f:
+            json.dump({"source_sha256": self.model["source_sha256"],
+                       "block_edits": [{"block_id": code["id"], "new_content": "x"}]}, f)
+        r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "reassemble.py"),
+                            self.post, p, "--write"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 5)
+        with open(self.post) as f:
+            self.assertEqual(f.read(), self.MD)
+
+
 class PlainMarkdownTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()

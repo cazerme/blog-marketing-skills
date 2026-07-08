@@ -67,6 +67,9 @@ class SpineTest(unittest.TestCase):
         self.assertEqual(self.current(), self.original())
         self.assertTrue(json.loads(r.stdout)["identical"])
 
+    def backup_dir(self):
+        return os.path.join(self.dir, ".seo-optimizer", "backups")
+
     def test_single_edit_touches_only_that_span(self):
         b = next(b for b in self.model["blocks"]
                  if b["editable"] and "<a " not in b["html"] and b["tag"] == "p")
@@ -79,7 +82,39 @@ class SpineTest(unittest.TestCase):
                     + "Replaced paragraph for the span test."
                     + self.original()[b["inner_span"][1]:])
         self.assertEqual(self.current(), expected)
-        self.assertTrue(os.path.exists(self.post + ".bak"))
+        self.assertTrue(os.path.exists(os.path.join(self.backup_dir(), "post.html.original")))
+
+    def test_double_run_never_loses_the_first_original(self):
+        ps = [b for b in self.model["blocks"]
+              if b["editable"] and "<a " not in b["html"] and b["tag"] == "p"]
+        r = run("reassemble.py", self.post,
+                self.plan(block_edits=[{"block_id": ps[0]["id"],
+                                        "new_content": "First optimization pass output."}]),
+                "--write")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+        # second run against the new file state (fresh extract for a fresh sha)
+        model2_path = os.path.join(self.dir, "model2.json")
+        r = run("extract.py", self.post, "--out", model2_path)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(model2_path) as f:
+            sha2 = json.load(f)["source_sha256"]
+        plan2 = os.path.join(self.dir, "plan2.json")
+        with open(plan2, "w") as f:
+            json.dump({"source_sha256": sha2,
+                       "block_edits": [{"block_id": ps[1]["id"],
+                                        "new_content": "Second optimization pass output."}]}, f)
+        r = run("reassemble.py", self.post, plan2, "--write")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+        # the first-ever original must still be the untouched fixture bytes
+        with open(os.path.join(self.backup_dir(), "post.html.original")) as f:
+            self.assertEqual(f.read(), self.original())
+        snapshots = [f for f in os.listdir(self.backup_dir())
+                     if not f.endswith(".original")]
+        self.assertGreaterEqual(len(snapshots), 2)
+        self.assertIn("First optimization pass output.", self.current())
+        self.assertIn("Second optimization pass output.", self.current())
 
     def test_unknown_block_id_rejected_file_untouched(self):
         r = run("reassemble.py", self.post,

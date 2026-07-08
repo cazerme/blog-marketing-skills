@@ -5,8 +5,12 @@ Stdlib only. No network. Splices edits into the original source by byte
 span: regions not named in the plan are byte-identical by construction.
 
 Refuses to write anything unless every validation and integrity check
-passes. Default is a dry run; pass --write to actually modify the file
-(a `<input>.bak` backup of the original is written first).
+passes. Default is a dry run; pass --write to actually modify the file.
+
+Backups live in `<input-dir>/.seo-optimizer/backups/` (a dot-directory
+that static site generators and build tools ignore by convention):
+  <name>.original            first-ever pre-run copy — never overwritten
+  <name>.YYYYMMDD-HHMMSS     this run's pre-write state (collision-safe)
 
 EditPlan JSON:
 {
@@ -23,6 +27,7 @@ Exit codes: 0 ok · 2 usage/IO error · 4 file changed since extract ·
 5 invalid plan · 6 integrity violation (nothing written).
 """
 import argparse
+import datetime
 import html as htmllib
 import json
 import os
@@ -218,11 +223,23 @@ def main(argv=None):
     report["identical"] = new_source == source
 
     if args.write:
-        backup = args.input + ".bak"
+        d = os.path.dirname(os.path.abspath(args.input)) or "."
+        base = os.path.basename(args.input)
+        bdir = os.path.join(d, ".seo-optimizer", "backups")
         try:
-            with open(backup, "w", encoding="utf-8") as f:
+            os.makedirs(bdir, exist_ok=True)
+            original = os.path.join(bdir, base + ".original")
+            if not os.path.exists(original):  # first ever run: preserve forever
+                with open(original, "w", encoding="utf-8") as f:
+                    f.write(source)
+            stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            snapshot = os.path.join(bdir, "%s.%s" % (base, stamp))
+            n = 1
+            while os.path.exists(snapshot):
+                n += 1
+                snapshot = os.path.join(bdir, "%s.%s-%d" % (base, stamp, n))
+            with open(snapshot, "w", encoding="utf-8") as f:
                 f.write(source)
-            d = os.path.dirname(os.path.abspath(args.input)) or "."
             fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(new_source)
@@ -230,7 +247,7 @@ def main(argv=None):
         except OSError as e:
             return fail(2, report, "write failed: %s" % e)
         report["wrote"] = True
-        report["backup"] = backup
+        report["backup"] = {"original": original, "snapshot": snapshot}
 
     json.dump(report, sys.stdout, indent=2, ensure_ascii=False)
     print()

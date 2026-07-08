@@ -22,6 +22,7 @@ SETEXT_RE = re.compile(r"^ {0,3}(=+|-{2,})[ \t]*$")
 TABLE_SEP_RE = re.compile(r"^ {0,3}\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$")
 HTML_BLOCK_RE = re.compile(r"^ {0,3}</?[a-zA-Z][^>]*>?")
 INDENT_RE = re.compile(r"^ {2,}\S")
+INDENT_CODE_RE = re.compile(r"^( {4,}|\t)\S")
 FM_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+):[ \t]*(.*)$")
 IMG_ONLY_RE = re.compile(r"^ {0,3}!\[[^\]]*\]\([^)]*\)[ \t]*$")
 
@@ -209,6 +210,29 @@ def parse(source):
         if IMG_ONLY_RE.match(text):
             add("img", False, j, j, text="")
             j += 1
+            continue
+
+        # indented code block (classic 4-space style) — only at block start;
+        # indented lines directly after paragraph text stay lazy continuation
+        if INDENT_CODE_RE.match(text):
+            k = j
+            while k + 1 < n:
+                nxt = lines[k + 1][1]
+                if nxt.strip():
+                    if INDENT_CODE_RE.match(nxt):
+                        k += 1
+                        continue
+                    break
+                p = k + 2  # blank: continue only if the indented block resumes
+                while p < n and not lines[p][1].strip():
+                    p += 1
+                if p < n and INDENT_CODE_RE.match(lines[p][1]):
+                    k = p
+                    continue
+                break
+            add("code", False, j, k, text="")
+            code_spans.append(tuple(blocks[-1]["span"]))
+            j = k + 1
             continue
 
         # paragraph (or setext heading)

@@ -1,7 +1,7 @@
 ---
 name: blog-seo-geo
 description: 'Optimize a local blog post file (HTML or Markdown) for SEO and GEO (AI-citation readiness): parse into blocks, audit with aaron-marketing:on-page-seo-auditor, rewrite blocks with aaron-marketing:content-writer, make content citation-ready with aaron-marketing:geo-content-optimizer, build head markup with aaron-marketing:serp-markup-builder, write the file back safely (backup + fail-closed integrity checks), and emit a change report. Handles full HTML documents, body fragments, and Markdown posts with YAML front matter (Jekyll/Hugo/GitHub Pages style); code fences and embedded HTML in markdown are never touched. Use when the user asks to optimize a blog post, improve a post''s SEO, or make a post more citable by AI engines. Input is a path to an .html or .md file whose article content is in the file. Not for live URLs, SPA/build-artifact HTML, or site-level technical SEO.'
-version: "0.3.1"
+version: "0.3.2"
 license: MIT
 argument-hint: "<path/to/post.html|.md> [target keyword]"
 allowed-tools: Read, Write, Bash, Skill
@@ -110,18 +110,18 @@ python3 "$SKILL/scripts/reassemble.py" <input.html> <tmp>/editplan.json --write 
 
 - Dry-run first. If it reports violations, fix the plan **once** and retry; a second rejection means stop and report (file untouched).
 - Exit 4 (sha mismatch): the file changed since extract — restart from Step 1.
-- On success the JSON output contains `mechanical_before`/`mechanical_after`, changed blocks, and the backup path. The original is preserved at `<input>.bak`.
+- On success the JSON output contains `mechanical_before`/`mechanical_after`, changed blocks, and the backup paths. Backups live in `<input-dir>/.seo-optimizer/backups/`: `<name>.original` is the first-ever pre-run copy (never overwritten across runs) and `<name>.<timestamp>` is this run's pre-write state — build tools ignore dot-directories, so neither can leak into a published site.
 
 ## Step 9 — Report
 
-Write `<input-dir>/<basename>.seo-report.md` (e.g. `post.html` → `post.seo-report.md`):
+Write `<input-dir>/.seo-optimizer/reports/<basename>.seo-report.md` (e.g. `post.html` → `.seo-optimizer/reports/post.seo-report.md`). **Never write the report next to the input file**: content directories are scanned by static site generators, and a date-prefixed `.md` report inside e.g. Jekyll's `_posts/` would be published as an article. The dot-directory is ignored by every mainstream build tool.
 
 ```markdown
 # SEO/GEO report — <basename>.html
 - Target keyword: "<kw>" (user-provided | heuristically derived — not backed by search-volume data)
 - Input kind: document | fragment (rendered by a page template) | markdown (front matter: yes/no)
 - Resolved <N> of <M> issues · mechanical score <before> → <after> (deterministic checks)
-- Backup: <input>.html.bak
+- Backups: .seo-optimizer/backups/<name>.original (first-ever) · <name>.<timestamp> (this run)
 
 ## Changes
 | Block | Type (seo/geo/meta) | What changed | Why |
@@ -138,4 +138,6 @@ paste-ready values and where each goes)
 
 ## Step 10 — Tell the user
 
-Summarize in chat: keyword, resolved N of M, mechanical score movement, the artifacts (optimized file, `.bak`, report), whether template suggestions need their attention, and the top remaining item. Keep it short; the report holds the detail.
+Summarize in chat: keyword, resolved N of M, mechanical score movement, the artifacts (optimized file, backups, report — with the `.seo-optimizer/` paths), whether template suggestions need their attention, and the top remaining item. Keep it short; the report holds the detail.
+
+Housekeeping hint (suggest, never do): if the input sits in a git repo and `git check-ignore -q .seo-optimizer` (run from the input's directory) exits non-zero, append one line to the summary suggesting the user add `.seo-optimizer/` to their `.gitignore` to keep backups local. **Do not edit their `.gitignore` yourself** — it is outside this skill's write whitelist (input file, backups, report, temp files only).

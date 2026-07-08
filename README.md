@@ -16,8 +16,10 @@ Claude Code skills that optimize blog posts for **SEO** (Google rankings) and **
 3. Rewrites content blocks with `aaron-marketing:content-writer` (refresh mode) — facts, links and images are preserved; nothing is invented
 4. Runs a **GEO pass** with `aaron-marketing:geo-content-optimizer`: makes key passages quotable by AI engines (Gemini-style citation) and adds answer/FAQ blocks where warranted — restating only what the post already says
 5. Builds head markup with `aaron-marketing:serp-markup-builder`: title + meta description are applied to full HTML documents and to markdown front matter; OG/Twitter/JSON-LD land in the report as paste-ready template suggestions
-6. Writes the file back **safely**: `.bak` backup first, then an atomic write that is refused entirely if any link/image/structure would be lost (fail-closed)
-7. Emits `post.seo-report.md` next to your file: keyword rationale, what changed and why, resolved issues, mechanical score before/after, template suggestions
+6. Writes the file back **safely**: backups first, then an atomic write that is refused entirely if any link/image/structure would be lost (fail-closed)
+7. Emits a report under `.seo-optimizer/reports/`: keyword rationale, what changed and why, resolved issues, mechanical score before/after, template suggestions
+
+All byproducts live in `<input-dir>/.seo-optimizer/` — a dot-directory that static site generators and build tools ignore, so backups and reports can never leak into your published site (and never collide with e.g. Jekyll's `_posts/` scanning). `backups/<name>.original` is your first-ever pre-run copy and is **never overwritten**, no matter how many times you re-optimize; every run also leaves a timestamped pre-write snapshot. Add `.seo-optimizer/` to your `.gitignore` to keep them local (the skill reminds you if it isn't).
 
 ### Markdown blogs (Jekyll / Hugo / GitHub Pages)
 
@@ -52,7 +54,7 @@ Try it on the bundled sample first: copy `examples/sample-post.html` somewhere a
 | | |
 |---|---|
 | ✅ Input | A **local HTML or Markdown file** whose article content is in the file — full HTML documents, body fragments, or `.md` posts with YAML front matter (hand-written HTML, Jekyll/Hugo/GitHub Pages sources, server-rendered pages committed to your repo) |
-| ✅ Output | The same file, optimized in place + `<name>.seo-report.md` + `.bak` backup; head-level items for fragments/front-matter-less markdown go to the report, never guessed into the file |
+| ✅ Output | The same file, optimized in place; report + never-overwritten original + timestamped snapshots under `.seo-optimizer/`; head-level items for fragments/front-matter-less markdown go to the report, never guessed into the file |
 | ✅ Language / engines | English content; SEO for Google, GEO for Gemini-style AI citation |
 | ❌ Live URLs | Not supported: there is no "original file" to write back to. Edit the source file in your repo, then deploy |
 | ❌ SPA shells / build artifacts | Refused with an explanation — the right edit target is your content source, not compiled output |
@@ -60,7 +62,7 @@ Try it on the bundled sample first: copy `examples/sample-post.html` somewhere a
 
 ## Safety guarantees
 
-- **Write whitelist**: only your input file (after a `.bak` backup), the report file, and temp files. Nothing else is touched.
+- **Write whitelist**: only your input file (after backups land in `.seo-optimizer/backups/`), the report file, and temp files. Nothing else is touched — not even your `.gitignore` (the skill suggests the ignore line; you add it).
 - **Fail-closed**: unknown blocks, lost links/images, structural damage, or the file changing mid-run ⇒ the plan is rejected and **nothing is written**.
 - **Byte-exact splicing**: unedited regions of your file are byte-identical by construction — the document is never re-serialized. In markdown, code fences and embedded HTML are structurally non-editable.
 - **No fabrication**: rewrites reorganize and tighten what the post already says; new facts, stats, or claims are out of bounds.
