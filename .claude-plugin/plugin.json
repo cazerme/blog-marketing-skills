@@ -1,0 +1,25 @@
+{
+  "name": "blog-marketing",
+  "version": "0.1.0",
+  "description": "Optimize a static blog post HTML file for SEO and GEO (AI-citation readiness) by orchestrating aaron-marketing skills: diagnose, rewrite content blocks, write the file back safely, and emit a change report. Deterministic parsing/write-back is handled by dependency-free Python scripts; editorial judgment is delegated to aaron-marketing sub-skills.",
+  "author": {
+    "name": "cazerme",
+    "url": "https://github.com/cazerme"
+  },
+  "homepage": "https://github.com/cazerme/blog-marketing-skills",
+  "repository": "https://github.com/cazerme/blog-marketing-skills",
+  "license": "MIT",
+  "keywords": [
+    "seo",
+    "geo",
+    "blog",
+    "content-optimization",
+    "generative-engine-optimization",
+    "ai-citation",
+    "on-page-seo",
+    "claude-code-plugin"
+  ],
+  "skills": [
+    "./skills/blog-seo-geo"
+  ]
+}

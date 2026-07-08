@@ -1,0 +1,27 @@
+{
+  "name": "blog-marketing-skills",
+  "owner": {
+    "name": "cazerme",
+    "url": "https://github.com/cazerme"
+  },
+  "metadata": {
+    "description": "Blog marketing skills for Claude Code: SEO + GEO optimization of blog posts, built on top of the aaron-marketing skill pack.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "blog-marketing",
+      "source": "./",
+      "description": "Optimize a static blog post HTML file for SEO and GEO (AI-citation readiness): diagnose, rewrite content blocks via aaron-marketing skills, write the file back safely (backup + integrity checks, fail-closed), and emit a change report.",
+      "version": "0.1.0",
+      "category": "marketing",
+      "tags": [
+        "seo",
+        "geo",
+        "blog",
+        "content-optimization",
+        "ai-citation"
+      ]
+    }
+  ]
+}
