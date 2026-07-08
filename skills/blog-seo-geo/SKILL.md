@@ -28,8 +28,8 @@ All paths below use `$SKILL` for this skill's directory: set `SKILL="${CLAUDE_PL
 - The input path exists and is an `.html`/`.htm`/`.md`/`.markdown` file. If the user gave a URL instead of a path: stop and explain that this skill optimizes local source files (edit → deploy), not live pages.
 - The aaron-marketing plugin is installed (the `aaron-marketing:*` skills from the playbook are available). If not, stop and print:
   ```
-  claude plugin marketplace add aaron-he-zhu/aaron-marketing-skills
-  claude plugin install aaron-marketing@aaron
+  /plugin marketplace add aaron-he-zhu/aaron-marketing-skills
+  /plugin install aaron-marketing@aaron
   ```
 
 ## Step 1 — Extract (read-only)
