@@ -18,8 +18,8 @@ If a call point misbehaves, compare against this table before changing SKILL.md.
 
 Disposal of outputs:
 
-- Call points 2–3 → `block_edits` / `insertions` in the EditPlan (one edit per block; merge when 2 and 3 touch the same block).
-- Call point 4 → `meta_edits` (title + meta description, **documents only**); everything else (OG/Twitter/JSON-LD/canonical — and for fragments, all of it) → the report's "Template suggestions" section as paste-ready values.
+- Call points 2–3 → `block_edits` / `insertions` in the EditPlan (one edit per block; merge when 2 and 3 touch the same block). Content is in the file's own format: HTML for `.html`, markdown for `.md`.
+- Call point 4 → `meta_edits` for **HTML documents** (title + meta description) and **markdown with front matter** (front-matter `title`/`description`, missing keys added); everything else (OG/Twitter/JSON-LD/canonical — and for fragments / front-matter-less markdown, all of it) → the report's "Template suggestions" section as paste-ready values.
 
 Dependency install (what Step 0 prints when the plugin is missing):
 

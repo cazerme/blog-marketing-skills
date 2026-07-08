@@ -31,6 +31,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import extract  # noqa: E402
+import md as mdlib  # noqa: E402
 
 
 def fail(code, report, msg):
@@ -46,11 +47,14 @@ def build_splices(model, plan, report):
     splices = []
     blocks = {b["id"]: b for b in model["blocks"]}
     seen = set()
+    is_md = model.get("format") == "markdown"
+    ins_sep = "\n\n" if is_md else "\n"
 
     for e in plan.get("block_edits", []):
         bid = e.get("block_id")
         b = blocks.get(bid)
-        new = e.get("new_inner_html", "")
+        # new_content is the preferred field (markdown or HTML); new_inner_html kept for compat
+        new = e.get("new_content") or e.get("new_inner_html") or ""
         if b is None:
             report["violations"].append("block_edit: unknown block_id %r" % bid)
         elif not b["editable"]:
@@ -75,30 +79,54 @@ def build_splices(model, plan, report):
         elif not content.strip():
             report["violations"].append("insertion: empty html")
         else:
-            splices.append((b["span"][1], b["span"][1], "\n" + content))
+            splices.append((b["span"][1], b["span"][1], ins_sep + content))
             report["insertions"].append(bid)
 
     meta = plan.get("meta_edits") or {}
+    fm_off = model["head"].get("fm_insert_offset")
     if meta.get("title"):
         t = model["head"]["title"]
-        if not t:
+        if is_md:
+            if t:
+                splices.append((t["inner_span"][0], t["inner_span"][1],
+                                mdlib.yaml_quote(meta["title"])))
+                report["meta_changes"].append("title")
+            elif fm_off is not None:
+                splices.append((fm_off, fm_off, "title: %s\n" % mdlib.yaml_quote(meta["title"])))
+                report["meta_changes"].append("title")
+            else:
+                report["violations"].append("meta_edits.title: markdown file has no front matter")
+        elif not t:
             report["violations"].append("meta_edits.title: document has no <title> element")
         else:
             splices.append((t["inner_span"][0], t["inner_span"][1],
                             htmllib.escape(meta["title"])))
             report["meta_changes"].append("title")
     if meta.get("meta_description"):
-        tag = '<meta name="description" content="%s">' % htmllib.escape(meta["meta_description"], quote=True)
-        md = model["head"]["meta_description"]
-        if md:
-            splices.append((md["span"][0], md["span"][1], tag))
-            report["meta_changes"].append("meta_description")
-        elif model["head"]["head_end_offset"] is not None:
-            off = model["head"]["head_end_offset"]
-            splices.append((off, off, tag + "\n"))
-            report["meta_changes"].append("meta_description")
+        if is_md:
+            md = model["head"]["meta_description"]
+            if md:
+                splices.append((md["span"][0], md["span"][1],
+                                mdlib.yaml_quote(meta["meta_description"])))
+                report["meta_changes"].append("meta_description")
+            elif fm_off is not None:
+                splices.append((fm_off, fm_off,
+                                "description: %s\n" % mdlib.yaml_quote(meta["meta_description"])))
+                report["meta_changes"].append("meta_description")
+            else:
+                report["violations"].append("meta_edits.meta_description: markdown file has no front matter")
         else:
-            report["violations"].append("meta_edits.meta_description: no <head> to place it in")
+            tag = '<meta name="description" content="%s">' % htmllib.escape(meta["meta_description"], quote=True)
+            md = model["head"]["meta_description"]
+            if md:
+                splices.append((md["span"][0], md["span"][1], tag))
+                report["meta_changes"].append("meta_description")
+            elif model["head"]["head_end_offset"] is not None:
+                off = model["head"]["head_end_offset"]
+                splices.append((off, off, tag + "\n"))
+                report["meta_changes"].append("meta_description")
+            else:
+                report["violations"].append("meta_edits.meta_description: no <head> to place it in")
 
     if report["violations"]:
         return None
