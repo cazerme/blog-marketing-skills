@@ -1,7 +1,7 @@
 ---
 name: blog-seo-geo
 description: 'Optimize a local blog post file (HTML or Markdown) for SEO and GEO (AI-citation readiness): parse into blocks, audit with aaron-marketing:on-page-seo-auditor, rewrite blocks with aaron-marketing:content-writer, make content citation-ready with aaron-marketing:geo-content-optimizer, build head markup with aaron-marketing:serp-markup-builder, write the file back safely (backup + fail-closed integrity checks), and emit a change report. Handles full HTML documents, body fragments, and Markdown posts with YAML front matter (Jekyll/Hugo/GitHub Pages style); code fences and embedded HTML in markdown are never touched. Use when the user asks to optimize a blog post, improve a post''s SEO, or make a post more citable by AI engines. Input is a path to an .html or .md file whose article content is in the file. Not for live URLs, SPA/build-artifact HTML, or site-level technical SEO.'
-version: "0.3.0"
+version: "0.3.1"
 license: MIT
 argument-hint: "<path/to/post.html|.md> [target keyword]"
 allowed-tools: Read, Write, Bash, Skill

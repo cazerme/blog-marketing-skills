@@ -47,6 +47,7 @@ class ModelParser(HTMLParser):
 
         self._open = None          # {tag, depth, start, inner_start, text_parts}
         self._skip_depth = 0
+        self._article_depth = 0    # inside <article>/<main>: a <header> there belongs to the post
         self._in_title = False
         self._title_parts = []
         self._title_inner_start = None
@@ -78,11 +79,19 @@ class ModelParser(HTMLParser):
         self.images.append({"src": d.get("src"), "alt": d.get("alt"),
                             "in_content": self._skip_depth == 0})
 
+    def _is_skip_container(self, tag):
+        """Site chrome is skipped; an article-scoped <header> is post content."""
+        if tag not in SKIP_CONTAINERS:
+            return False
+        return not (tag == "header" and self._article_depth > 0)
+
     # -- parser events -----------------------------------------------------
     def handle_starttag(self, tag, attrs):
         start = self._abs()
         raw = self.get_starttag_text() or ""
 
+        if tag in ("article", "main"):
+            self._article_depth += 1
         if tag == "head":
             self.head["has_head"] = True
         if tag == "a":
@@ -105,7 +114,7 @@ class ModelParser(HTMLParser):
             self._title_parts = []
             self._title_inner_start = start + len(raw)
 
-        if tag in SKIP_CONTAINERS:
+        if self._is_skip_container(tag):
             self._skip_depth += 1
             return
 
@@ -135,9 +144,11 @@ class ModelParser(HTMLParser):
         if tag == "head":
             self.head["head_end_offset"] = pos
 
-        if tag in SKIP_CONTAINERS:
+        if self._is_skip_container(tag):
             self._skip_depth = max(0, self._skip_depth - 1)
             return
+        if tag in ("article", "main"):
+            self._article_depth = max(0, self._article_depth - 1)
 
         if self._open is not None and tag == self._open["tag"]:
             self._open["depth"] -= 1

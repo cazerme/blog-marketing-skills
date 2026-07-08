@@ -125,5 +125,51 @@ class SpineTest(unittest.TestCase):
         self.assertEqual(self.current(), self.original())
 
 
+class ArticleHeaderTest(unittest.TestCase):
+    """Regression: an <h1> inside <article><header> is post content, not site
+    chrome (found on a real production page). A site-level <header> outside
+    <article>/<main> must still be skipped."""
+
+    HTML = """<!DOCTYPE html>
+<html><head><title>Article header regression fixture page</title>
+<meta name="description" content="A fixture proving article-scoped headers are indexed while site headers stay skipped for the engine.">
+</head><body>
+<header><nav><a href="/">Home</a></nav><p>site tagline — must stay invisible</p></header>
+<article>
+<header>
+<h1>The Real Post Title Lives Here</h1>
+<p>Posted on a Tuesday.</p>
+</header>
+<p>Body paragraph with enough words to count as content for the test.</p>
+</article>
+</body></html>
+"""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.post = os.path.join(self.dir, "post.html")
+        with open(self.post, "w") as f:
+            f.write(self.HTML)
+        r = run("extract.py", self.post, "--out", os.path.join(self.dir, "m.json"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(os.path.join(self.dir, "m.json")) as f:
+            self.model = json.load(f)
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_article_header_h1_is_indexed(self):
+        h1s = [b for b in self.model["blocks"] if b["tag"] == "h1"]
+        self.assertEqual(len(h1s), 1)
+        self.assertEqual(h1s[0]["text"], "The Real Post Title Lives Here")
+        self.assertTrue(h1s[0]["editable"])
+        checks = {c["id"]: c for c in self.model["mechanical"]["checks"]}
+        self.assertEqual(checks["h1_unique"]["status"], "pass")
+
+    def test_site_header_still_skipped(self):
+        texts = " ".join(b["text"] for b in self.model["blocks"])
+        self.assertNotIn("site tagline", texts)
+
+
 if __name__ == "__main__":
     unittest.main()
