@@ -168,12 +168,19 @@ class ModelParser(HTMLParser):
 
 def run_checks(model, keyword=None):
     checks = []
+    is_fragment = model.get("doc_kind") == "fragment"
 
     def add(cid, status, detail, weight):
         checks.append({"id": cid, "status": status, "detail": detail, "weight": weight})
 
+    def skip(cid, why):
+        # skipped checks carry no weight and do not affect the score
+        add(cid, "skipped", why, 0)
+
     title = model["head"]["title"]
-    if not title or not title["text"]:
+    if is_fragment:
+        skip("title", "fragment — <title> lives in the page template")
+    elif not title or not title["text"]:
         add("title", "fail", "no <title> found", 15)
     elif 30 <= len(title["text"]) <= 60:
         add("title", "pass", "title length %d ok" % len(title["text"]), 15)
@@ -181,7 +188,9 @@ def run_checks(model, keyword=None):
         add("title", "warn", "title length %d (recommended 30-60)" % len(title["text"]), 15)
 
     md = model["head"]["meta_description"]
-    if not md:
+    if is_fragment:
+        skip("meta_description", "fragment — meta description lives in the page template")
+    elif not md:
         add("meta_description", "fail", "no meta description", 15)
     elif 70 <= len(md["content"]) <= 160:
         add("meta_description", "pass", "length %d ok" % len(md["content"]), 15)
@@ -189,7 +198,10 @@ def run_checks(model, keyword=None):
         add("meta_description", "warn", "length %d (recommended 70-160)" % len(md["content"]), 15)
 
     h1s = [b for b in model["blocks"] if b["tag"] == "h1"]
-    add("h1_unique", "pass" if len(h1s) == 1 else "fail", "%d h1 element(s)" % len(h1s), 10)
+    if is_fragment and not h1s:
+        skip("h1_unique", "fragment — h1 typically provided by the template")
+    else:
+        add("h1_unique", "pass" if len(h1s) == 1 else "fail", "%d h1 element(s)" % len(h1s), 10)
 
     levels = [int(b["tag"][1]) for b in model["blocks"] if re.match(r"h[1-6]$", b["tag"])]
     skips = [(a, b) for a, b in zip(levels, levels[1:]) if b > a + 1]
@@ -214,24 +226,35 @@ def run_checks(model, keyword=None):
     add("links", "pass" if internal and external else "warn",
         "%d internal / %d external content links" % (len(internal), len(external)), 10)
 
-    add("canonical", "pass" if model["head"]["canonical_present"] else "warn",
-        "canonical link %s" % ("present" if model["head"]["canonical_present"] else "missing"), 5)
-    add("jsonld", "pass" if model["head"]["jsonld_present"] else "warn",
-        "JSON-LD structured data %s" % ("present" if model["head"]["jsonld_present"] else "missing"), 5)
+    if is_fragment:
+        skip("canonical", "fragment — canonical link lives in the page template")
+        skip("jsonld", "fragment — structured data lives in the page template")
+    else:
+        add("canonical", "pass" if model["head"]["canonical_present"] else "warn",
+            "canonical link %s" % ("present" if model["head"]["canonical_present"] else "missing"), 5)
+        add("jsonld", "pass" if model["head"]["jsonld_present"] else "warn",
+            "JSON-LD structured data %s" % ("present" if model["head"]["jsonld_present"] else "missing"), 5)
 
     if keyword:
         kw = keyword.lower()
-        t = (title["text"] if title else "").lower()
-        add("kw_title", "pass" if kw in t else "fail", "keyword in title: %s" % (kw in t), 4)
-        h1t = (h1s[0]["text"] if h1s else "").lower()
-        add("kw_h1", "pass" if kw in h1t else "fail", "keyword in h1: %s" % (kw in h1t), 3)
+        if is_fragment:
+            skip("kw_title", "fragment — <title> lives in the page template")
+        else:
+            t = (title["text"] if title else "").lower()
+            add("kw_title", "pass" if kw in t else "fail", "keyword in title: %s" % (kw in t), 4)
+        if is_fragment and not h1s:
+            skip("kw_h1", "fragment — h1 typically provided by the template")
+        else:
+            h1t = (h1s[0]["text"] if h1s else "").lower()
+            add("kw_h1", "pass" if kw in h1t else "fail", "keyword in h1: %s" % (kw in h1t), 3)
         first_p = next((b["text"] for b in model["blocks"] if b["tag"] == "p" and b["editable"]), "")
         opening = " ".join(first_p.split()[:100]).lower()
         add("kw_opening", "pass" if kw in opening else "fail",
             "keyword in first 100 words: %s" % (kw in opening), 3)
 
-    earned = sum({"pass": 1.0, "warn": 0.5, "fail": 0.0}[c["status"]] * c["weight"] for c in checks)
-    total = sum(c["weight"] for c in checks)
+    scored = [c for c in checks if c["status"] != "skipped"]
+    earned = sum({"pass": 1.0, "warn": 0.5, "fail": 0.0}[c["status"]] * c["weight"] for c in scored)
+    total = sum(c["weight"] for c in scored) or 1
     return {"score": round(100.0 * earned / total, 1), "max": 100,
             "checks": checks}
 

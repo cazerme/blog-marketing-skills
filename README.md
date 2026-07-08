@@ -2,7 +2,7 @@
 
 Claude Code skills that optimize blog posts for **SEO** (Google rankings) and **GEO** (getting cited by AI engines like Gemini). Built on top of the open-source [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) skill pack: this plugin orchestrates its auditing/writing skills and adds a deterministic, fail-closed engine for safely editing your HTML files in place.
 
-> **Status: v0.1 — minimal working loop.** One skill, `blog-seo-geo`. See [Scope](#scope-v01) for exactly what it does and refuses to do.
+> **Status: v0.2.** One skill, `blog-seo-geo`. See [Scope](#scope-v02) for exactly what it does and refuses to do.
 
 ## What it does
 
@@ -13,8 +13,14 @@ Claude Code skills that optimize blog posts for **SEO** (Google rankings) and **
 1. Parses your post into content blocks and runs deterministic mechanical checks (title/meta, heading structure, alt text, links…) → baseline score
 2. Diagnoses it with `aaron-marketing:on-page-seo-auditor`
 3. Rewrites content blocks with `aaron-marketing:content-writer` (refresh mode) — facts, links and images are preserved; nothing is invented
-4. Writes the file back **safely**: `.bak` backup first, then an atomic write that is refused entirely if any link/image/structure would be lost (fail-closed)
-5. Emits `post.seo-report.md` next to your file: keyword rationale, what changed and why, resolved issues, mechanical score before/after
+4. Runs a **GEO pass** with `aaron-marketing:geo-content-optimizer`: makes key passages quotable by AI engines (Gemini-style citation) and adds answer/FAQ blocks where warranted — restating only what the post already says
+5. Builds head markup with `aaron-marketing:serp-markup-builder`: title + meta description are applied to full documents; OG/Twitter/JSON-LD land in the report as paste-ready template suggestions
+6. Writes the file back **safely**: `.bak` backup first, then an atomic write that is refused entirely if any link/image/structure would be lost (fail-closed)
+7. Emits `post.seo-report.md` next to your file: keyword rationale, what changed and why, resolved issues, mechanical score before/after, template suggestions
+
+### Fragment mode (template-driven blogs)
+
+If your posts are **body fragments** (no `<html>/<head>` — a server or SSG injects them into a page template, e.g. Flask/Jinja/Hugo partials), the skill detects this automatically: body optimization is applied to the fragment file as usual, while every head-level item (title, meta description, canonical, OG/Twitter, JSON-LD) is delivered in the report as paste-ready values with a pointer to where they belong (your template / post registry). Head-level mechanical checks are marked `skipped` instead of failing — they score against your template, not your fragment.
 
 ## Install
 
@@ -36,12 +42,12 @@ Then, inside your blog project:
 
 Try it on the bundled sample first: copy `examples/sample-post.html` somewhere and run the command on it.
 
-## Scope (v0.1)
+## Scope (v0.2)
 
 | | |
 |---|---|
-| ✅ Input | A **local, static HTML file** whose article content is in the file (hand-written HTML, Hugo/Jekyll/SSG output, server-rendered pages committed to your repo) |
-| ✅ Output | The same file, optimized in place + `<name>.seo-report.md` + `<name>.html.bak` backup |
+| ✅ Input | A **local, static HTML file** whose article content is in the file — full documents or body fragments (hand-written HTML, Hugo/Jekyll/SSG output, server-rendered pages committed to your repo) |
+| ✅ Output | The same file, optimized in place + `<name>.seo-report.md` + `<name>.html.bak` backup; head-level items for fragments go to the report, never guessed into the file |
 | ✅ Language / engines | English content; SEO for Google, GEO for Gemini-style AI citation |
 | ❌ Live URLs | Not supported: there is no "original file" to write back to. Edit the source file in your repo, then deploy |
 | ❌ SPA shells / build artifacts | Refused with an explanation — the right edit target is your content source, not compiled output |
@@ -57,7 +63,7 @@ Try it on the bundled sample first: copy `examples/sample-post.html` somewhere a
 
 ## Roadmap
 
-Fragment-mode input (posts without `<head>`, meta suggestions go to the report), GEO rewrite pass (`geo-content-optimizer` + `serp-markup-builder` for FAQ blocks and JSON-LD), Markdown input, URL read-only audits.
+Markdown input (the right entry point for dynamic/JS-framework blogs), URL read-only audits, head-markup injection for full documents (OG/Twitter/JSON-LD blocks), image `alt` editing, opt-in secondary write targets (e.g. `--meta-target` for a post registry file).
 
 ## Development
 
