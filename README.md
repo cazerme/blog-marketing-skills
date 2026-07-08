@@ -32,11 +32,11 @@ If your posts are **body fragments** (no `<html>/<head>` — a server or SSG inj
 Requires [Claude Code](https://claude.com/claude-code) and the aaron-marketing plugin:
 
 ```
-claude plugin marketplace add aaron-he-zhu/aaron-marketing-skills
-claude plugin install aaron-marketing@aaron
+/plugin marketplace add aaron-he-zhu/aaron-marketing-skills
+/plugin install aaron-marketing@aaron
 
-claude plugin marketplace add cazerme/blog-marketing-skills
-claude plugin install blog-marketing@blog-marketing-skills
+/plugin marketplace add cazerme/blog-marketing-skills
+/plugin install blog-marketing@blog-marketing-skills
 ```
 
 Then, inside your blog project:
