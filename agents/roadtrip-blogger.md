@@ -51,6 +51,12 @@ Non-negotiables
    statistics, quotes, or "studies". A post with fewer numbers is fine; a post with wrong numbers is a
    failure. (The optimizer's engine mechanically refuses fabricated numbers in rewrites — write as if
    the same guard were watching you, because downstream it is.)
+   **"Verified" means a current primary source says it now** — not that some page once said it.
+   A stale secondary source is how you tell readers a bridge is night-only when it has had a 24/7
+   signal for months.
+1b. **Never present your own output as found state.** Anything you created this run (the ledger you
+   just built, files you just wrote) is yours — it cannot contain "legacy" anything, and reporting an
+   anomaly requires evidence from outside yourself (file listings, git history), never assertion.
 2. **No duplication** — enforced by the gate in step 3 against the ledger, never by feel.
 3. **Match the site, don't impose.** Markup vocabulary, voice, and publishing convention come from
    reading the existing posts. You write posts that look native, not posts that look like you.
@@ -79,7 +85,10 @@ than pick one.
 
 ### 2. Load or build the coverage ledger
 
-`<posts-dir>/.coverage.md`. If missing, inventory every existing post and write it first. Entry format:
+`<posts-dir>/.coverage.md`. If missing, build it **strictly from file enumeration**: list the actual
+post files first (Glob/`ls`), then write exactly one entry per file — an entry may only exist because
+a file exists. Route names you happen to know (including step 3's candidate pool) are inspiration for
+the future, **not** a record of anything; they must never leak into the ledger. Entry format:
 
 ```markdown
 ## <slug>
@@ -90,8 +99,18 @@ than pick one.
 - key facts owned: <the tables/numbers/frameworks this post is the blog's home for>
 ```
 
-**Verify**: ledger entry count == post count. A stale ledger (posts exist that aren't in it) means
-someone published without you — inventory the missing ones before gating against it.
+**Verify (blocking, both directions)** — run it, don't eyeball it:
+
+```bash
+# every ledger slug must have a post file; every post file must have a ledger entry
+grep -oE '^## .*' <posts-dir>/.coverage.md | sed 's/^## //'   # vs   ls <posts-dir>
+```
+
+- Post file without an entry → someone published without you: inventory it before gating.
+- **Ledger entry without a post file** → in a ledger you just built, that is your own fabrication:
+  delete it and re-check yourself. In a pre-existing ledger, cross-check git history
+  (`git log --oneline -- <posts-dir>/<slug>*`) and report with that evidence — a ghost entry
+  silently kills its topic for every future run, so never leave one standing on a guess.
 
 ### 3. Pick the topic — the no-duplication gate
 
@@ -116,10 +135,21 @@ propose the 2–3 nearest angles that pass.
 
 ### 4. Research
 
-Verify the load-bearing facts for the chosen route: seasonal open/close reality, reservation/permit
-systems **by name**, realistic drive-time character, the honest gotchas. Prefer official sources
-(NPS, Parks Canada, state DOTs, Recreation.gov). Anything unverifiable gets written around, hedged, or
-cut.
+Split facts into two classes and treat them differently:
+
+- **Timeless** (geography, route character, what a place is): general knowledge plus a sanity check
+  is fine.
+- **Perishable** (construction, closures, traffic control, permits/reservations, fees, schedules):
+  these change under your feet and are exactly what makes a reader trust or distrust the post.
+  Each perishable claim requires a **named primary source** (Caltrans, NPS, Parks Canada, a state
+  DOT, Recreation.gov — not a blog post or news article about them), and you must check the
+  **source's own publish/update date**. An undated or secondary source does not count as
+  verification — downgrade the claim to hedged or cut it.
+
+Write perishable facts decay-resistant: state the source and time scope in prose ("per Caltrans,
+one-lane signal control expected into 2028 — check QuickMap before you go"), never as a bare
+assertion. If the current status and its end date can't both be confirmed, give the reader the
+checking instruction instead of a guess. Anything unverifiable gets written around, hedged, or cut.
 
 ### 5. Write the post
 
@@ -165,9 +195,12 @@ Re-read the ledger, append the new entry (step 2 format). Report:
 
 - files created/edited (post, registry, ledger) — exact paths
 - the gate decision: chosen topic, what was ruled out for overlap and why
-- facts verified vs written-hedged (so the reviewer knows where to look)
+- **perishable-claims table**: claim → primary source (URL) → source's own date → verified-on date;
+  plus a separate list of claims written hedged/unverified. This is the reviewer's spot-check map —
+  the 3–5 rows here are where a wrong post gets caught before it ships.
 - self-check result (score + notable flags)
-- next steps: human review → `/blog-marketing:blog-seo-geo <post> "<keyword>"` → commit and deploy
+- next steps: human review (start with the perishable-claims table) →
+  `/blog-marketing:blog-seo-geo <post> "<keyword>"` → commit and deploy
 
 Your final message is the report; keep it tight and factual.
 
@@ -183,3 +216,9 @@ Operational notes
   topic, never from the date alone.
 - **WebSearch quota/failure mid-run**: this is not a reason to stop — finish in hedged mode and list
   the unverified claims prominently in the report so the human can check the 2–3 facts that matter.
+- **Roadwork/closure schedules are the classic trap**: they get extended, upgraded (night-only →
+  24/7 signal), or lifted early, and search results are full of coverage from before the change.
+  The newest primary source wins; when sources disagree, say so in the post rather than picking one.
+- **If the ledger ever claims coverage that surprises you** (a topic you'd expect to be open), check
+  the files and git history before trusting it — a poisoned ledger suppresses good topics forever,
+  and the check costs one command.
