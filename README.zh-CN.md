@@ -4,7 +4,18 @@
 
 为博客文章做 **SEO**（Google 排名）和 **GEO**（被 Gemini 这类 AI 引擎引用）优化的 Claude Code 技能。构建在开源技能包 [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) 之上：本插件负责编排它的审计/写作技能，并自带一套确定性的、fail-closed 的引擎，安全地原地修改你的 HTML 或 Markdown 文件。
 
-> **状态：v0.4。** 一个技能：`blog-seo-geo`。它能做什么、拒绝做什么，见[能力边界](#能力边界v04)。
+> **状态：v0.5。** 一个技能（`blog-seo-geo`）+ 一个 agent（`roadtrip-blogger`）。技能的能力与边界见[能力边界](#能力边界v04)。
+
+## roadtrip-blogger agent
+
+每次运行生成一篇完整、可直接发布的**北美路线 roadtrip 博客**——用你站点自己的格式和文风，并且**保证与已发布内容不重复**：
+
+- 通过阅读你的站点自动发现发布约定（文章目录、注册表/front matter、标记词汇表），写出"原生长相"的文章
+- 三级去重门禁，背后是覆盖账本（`<文章目录>/.coverage.md`）：路线不重写、主关键词不自我蚕食、别的文章"拥有"的事实只链接不复述
+- 不编造具体信息：关键事实经官方来源核实，或以免责/不过时的方式书写
+- 按你的约定注册文章、用本插件的机械引擎自检、更新账本后交接——**从不 commit、不部署**
+
+在装了本插件的任何项目里直接说"生成一篇新的 roadtrip 博客"（可指定路线/关键词），或显式召唤 `roadtrip-blogger` agent。配合对新文章跑 `/blog-marketing:blog-seo-geo`，就是完整的"生成 → 优化"闭环。
 
 ## 它做什么
 

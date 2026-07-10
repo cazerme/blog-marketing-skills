@@ -1,7 +1,7 @@
 {
   "name": "blog-marketing",
-  "version": "0.4.0",
-  "description": "Optimize a local blog post (HTML or Markdown) for SEO and GEO (AI-citation readiness) by orchestrating aaron-marketing skills: diagnose, rewrite content blocks, run a Gemini-targeted GEO pass, build head markup, write the file back safely, and emit a change report. Supports full HTML documents, body fragments (template-driven blogs), and Markdown posts with YAML front matter (Jekyll/Hugo/GitHub Pages); code fences and embedded HTML are never touched. Deterministic parsing/write-back is handled by dependency-free Python scripts; editorial judgment is delegated to aaron-marketing sub-skills.",
+  "version": "0.5.0",
+  "description": "Generate and optimize blog posts. The roadtrip-blogger agent writes complete, non-duplicating North American road-trip posts in your site's own format (three-level dedup gate via a coverage ledger). The blog-seo-geo skill optimizes a local post (HTML or Markdown) for SEO and GEO (AI-citation readiness) by orchestrating aaron-marketing skills: diagnose, rewrite content blocks, run a Gemini-targeted GEO pass, build head markup, write the file back safely (fail-closed integrity checks, number-fabrication guard), and emit a change report. Deterministic parsing/write-back is handled by dependency-free Python scripts; editorial judgment is delegated to aaron-marketing sub-skills.",
   "author": {
     "name": "cazerme",
     "url": "https://github.com/cazerme"
@@ -21,5 +21,8 @@
   ],
   "skills": [
     "./skills/blog-seo-geo"
+  ],
+  "agents": [
+    "./agents/roadtrip-blogger.md"
   ]
 }

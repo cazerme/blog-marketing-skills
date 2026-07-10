@@ -4,7 +4,18 @@ English | [简体中文](README.zh-CN.md)
 
 Claude Code skills that optimize blog posts for **SEO** (Google rankings) and **GEO** (getting cited by AI engines like Gemini). Built on top of the open-source [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) skill pack: this plugin orchestrates its auditing/writing skills and adds a deterministic, fail-closed engine for safely editing your HTML or Markdown files in place.
 
-> **Status: v0.4.** One skill, `blog-seo-geo`. See [Scope](#scope-v04) for exactly what it does and refuses to do.
+> **Status: v0.5.** One skill (`blog-seo-geo`) + one agent (`roadtrip-blogger`). See [Scope](#scope-v04) for exactly what the skill does and refuses to do.
+
+## The roadtrip-blogger agent
+
+Generates one complete, publish-ready **North American road-trip blog post** per run — in your site's own format and voice, and **guaranteed not to duplicate** anything the blog already published:
+
+- Discovers your publishing convention (posts directory, registry/front matter, markup vocabulary) by reading your site, then writes a native-looking post
+- A three-level dedup gate backed by a coverage ledger (`<posts-dir>/.coverage.md`): route not re-covered, primary keyword not cannibalized, facts owned by other posts linked instead of restated
+- No fabricated specifics: load-bearing facts verified via official sources or written hedged/timeless
+- Registers the post per your convention, self-checks with this plugin's mechanical engine, updates the ledger, and hands off — it never commits or deploys
+
+Ask for it in any project where the plugin is installed: *"generate a new roadtrip blog post"* (optionally name a route/keyword), or launch it explicitly as the `roadtrip-blogger` agent. Pair it with `/blog-marketing:blog-seo-geo` on the fresh post for the full generate → optimize loop.
 
 ## What it does
 
