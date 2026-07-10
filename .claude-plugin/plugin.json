@@ -21,8 +21,5 @@
   ],
   "skills": [
     "./skills/blog-seo-geo"
-  ],
-  "agents": [
-    "./agents/roadtrip-blogger.md"
   ]
 }
