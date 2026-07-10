@@ -1,0 +1,94 @@
+[English](README.md) | 简体中文
+
+# blog-marketing-skills
+
+为博客文章做 **SEO**（Google 排名）和 **GEO**（被 Gemini 这类 AI 引擎引用）优化的 Claude Code 技能。构建在开源技能包 [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) 之上：本插件负责编排它的审计/写作技能，并自带一套确定性的、fail-closed 的引擎，安全地原地修改你的 HTML 或 Markdown 文件。
+
+> **状态：v0.4。** 一个技能：`blog-seo-geo`。它能做什么、拒绝做什么，见[能力边界](#能力边界v04)。
+
+## 它做什么
+
+```
+/blog-marketing:blog-seo-geo path/to/post.html [目标关键词]
+/blog-marketing:blog-seo-geo posts/2026-07-08-my-post.md [目标关键词]
+```
+
+1. 把文章解析成内容块，跑一套确定性机械检查（title/meta、标题层级、图片 alt、链接……）→ 基线分
+2. 用 `aaron-marketing:on-page-seo-auditor` 诊断问题
+3. 用 `aaron-marketing:content-writer`（refresh 模式）改写内容块——事实、链接、图片全部保留，不编造任何东西
+4. 用 `aaron-marketing:geo-content-optimizer` 跑 **GEO pass**：把关键段落改写成 AI 引擎（Gemini 式引用）可直接摘引的形态，必要时补答案/FAQ 块——只复述文章已有的内容
+5. 用 `aaron-marketing:serp-markup-builder` 生成头部标记：title + meta description 直接写回完整 HTML 文档和 Markdown front matter；OG/Twitter/JSON-LD 以可直接粘贴的形式进报告
+6. **安全写回**：先落备份，再原子写入——任何链接/图片/结构会丢失时整个计划被拒（fail-closed）
+7. 在 `.seo-optimizer/reports/` 生成报告：关键词依据、改了什么为什么、已解决的问题、机械分前后对比、模板建议
+
+所有副产物都放在 `<输入文件目录>/.seo-optimizer/` 里——静态站点生成器和构建工具约定忽略点开头目录，所以备份和报告**永远不会泄漏进你发布的网站**（也不会撞上 Jekyll 对 `_posts/` 的扫描）。`backups/<文件名>.original` 是你第一次运行前的原文，**无论重复优化多少次都不会被覆盖**；每次运行还会另存一份带时间戳的运行前快照。建议把 `.seo-optimizer/` 加进 `.gitignore`（没加的话技能会提醒你）。
+
+### Markdown 博客（Jekyll / Hugo / GitHub Pages）
+
+`.md` 文章是一等输入。front matter 的 `title:` 和 `description:` 被当作文章的头部：既参与检查，也**直接原地修改**（已有 front matter 缺键会补上）。正文优化与 HTML 完全一致——并且解析器硬性保护改写绝不能碰的东西：**代码围栏、内嵌原始 HTML、表格、分隔线**。复杂的 front matter 值（嵌套列表、多行）一律不动。没有 front matter 的文章按下面的片段模式处理。
+
+### 片段模式（模板驱动的博客）
+
+如果你的文章是**正文片段**（没有 `<html>/<head>`——由服务器或 SSG 注入页面模板，例如 Flask/Jinja/Hugo partials），技能会自动识别：正文优化照常写回片段文件，而所有头部项（title、meta description、canonical、OG/Twitter、JSON-LD）以可直接粘贴的成品值进报告，并注明各自属于哪里（你的模板/文章注册表）。头部类机械检查标记为 `skipped` 而非误判失败——它们考核的是你的模板，不是这个片段。
+
+## 安装
+
+需要 [Claude Code](https://claude.com/claude-code) 和 aaron-marketing 插件：
+
+```
+/plugin marketplace add aaron-he-zhu/aaron-marketing-skills
+/plugin install aaron-marketing@aaron
+
+/plugin marketplace add cazerme/blog-marketing-skills
+/plugin install blog-marketing@blog-marketing-skills
+```
+
+然后在你的博客项目里：
+
+```
+/blog-marketing:blog-seo-geo posts/my-post.html
+```
+
+建议先拿自带样章练手：把 `examples/sample-post.html` 复制到任意位置，对它跑一次命令。
+
+`/plugin update blog-marketing` 之后需要重启 Claude Code（或运行 `/reload-plugins`）——在此之前会话仍使用之前加载的版本。技能在每次运行总结的末尾自报版本号，缓存过期一眼可见。
+
+## 能力边界（v0.4）
+
+| | |
+|---|---|
+| ✅ 输入 | **本地 HTML 或 Markdown 文件**，文章内容必须在文件里——完整 HTML 文档、正文片段、或带 YAML front matter 的 `.md`（手写 HTML、Jekyll/Hugo/GitHub Pages 源文件、提交在仓库里的服务端渲染页面） |
+| ✅ 输出 | 同一个文件原地优化；报告 + 永不覆盖的原文备份 + 时间戳快照，都在 `.seo-optimizer/` 下；片段/无 front matter 的 markdown 的头部项进报告，绝不瞎猜着写进文件 |
+| ✅ 语言/引擎 | 英文内容；SEO 面向 Google，GEO 面向 Gemini 式 AI 引用 |
+| ❌ 线上 URL | 不支持：没有"原文件"可写回。改仓库里的源文件，然后部署 |
+| ❌ SPA 空壳/构建产物 | 拒绝并说明原因——正确的编辑对象是你的内容源文件，不是编译输出 |
+| ❌ 技术 SEO | 爬取、sitemap、Core Web Vitals 是站点级问题，不在范围内 |
+
+## 安全保证
+
+- **写入白名单**：只碰你的输入文件（备份先落进 `.seo-optimizer/backups/`）、报告文件和临时文件。其他一概不动——连你的 `.gitignore` 都不动（技能只建议那行配置，由你自己加）。
+- **Fail-closed**：未知块、丢链接/丢图、结构损坏、运行中文件被改 ⇒ 整个计划被拒，**一个字都不写**。
+- **逐字节拼接**：未编辑区域从构造上保证逐字节不变——文档从不重新序列化。Markdown 里代码围栏和内嵌 HTML 在结构上就不可编辑。
+- **数字门禁**：改写中出现的任何数字，只要在原文档里不存在，整个计划即被拒绝（0–10 的整数豁免，"eight steps"→"8 steps" 仍可行）。编造或写串的统计数字**在机械层面就到不了你的文件**——这是引擎强制，不是提示词承诺。
+- **覆盖率诚实**：每次运行都报告解析器实际识别了多少比例的可见正文；低于 70% 时报告开头会挂明确的"部分覆盖"声明，绝不把半份诊断当整份交付。
+- **不编造**：改写只重组、收紧文章已有的内容；新事实、新数据、新论断越界（数字类还会被机械拒绝，见上）。
+- 脚本只用 Python 标准库——不需要 pip install，零网络访问。
+
+## 关于机械分
+
+这个分数是确定性的**启发式基线**——考核的是常规做法（title 长度、关键词位置、标题层级、alt 文本），不是编辑质量的裁决。刻意的非常规选择（比如用悬念式数据研究标题而不是关键词式标题）可能恰恰适合你的页面，却会在这里扣分。把低于 100 当作"值得看一眼"，而不是"必须修"；技能本身也被要求对足够好的内容保持克制。
+
+## 路线图
+
+URL 只读体检、完整文档的头部标记注入（OG/Twitter/JSON-LD 块）、图片 `alt` 编辑、MDX/setext 标题的可编辑化、显式授权的第二写入目标（如 `--meta-target` 指向文章注册表文件）。
+
+## 开发
+
+```
+python3 -m unittest discover tests    # 引擎 round-trip + fail-closed 测试套件
+claude plugin validate .              # 清单校验
+```
+
+## 许可证
+
+MIT。基于 aaron-marketing 16.1.0 测试。
