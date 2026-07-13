@@ -17,6 +17,40 @@ Generates one complete, publish-ready **North American road-trip blog post** per
 
 Ask for it in any project where the plugin is installed: *"generate a new roadtrip blog post"* (optionally name a route/keyword), or launch it explicitly as the `roadtrip-blogger` agent. Pair it with `/blog-marketing:blog-seo-geo` on the fresh post for the full generate → optimize loop.
 
+## GitHub Action — scheduled blog generation
+
+This repo is also a GitHub Action: run the roadtrip-blogger agent on a schedule and receive each new post as a **pull request** (never a push to your default branch). Add `ANTHROPIC_API_KEY` to your blog repo's secrets, then:
+
+```yaml
+# .github/workflows/daily-blog.yml
+name: Daily blog post
+on:
+  schedule:
+    - cron: "0 6 * * *"     # one post per day, 06:00 UTC
+  workflow_dispatch:          # plus a manual button
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: blog-generation      # never two runs racing the coverage ledger
+  cancel-in-progress: false
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cazerme/blog-marketing-skills@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # topic: "icefields parkway itinerary"   # optional; omit to auto-pick
+          # working_directory: sites/blog          # optional, for monorepos
+```
+
+Inputs: `anthropic_api_key` (required) · `topic` · `model` · `working_directory` · `create_pr` / `push_branch` · `base_branch` · `github_token`. Outputs: `post_file`, `branch`, `pr_url`.
+
+Each PR carries the agent's handoff report pointer — **review the perishable-claims table before merging** (closures, permits, fees: the facts that go stale). Every run costs real API tokens on your Anthropic account; the schedule above is the cost dial. Commit `<posts-dir>/.coverage.md` to your repo — it is the dedup memory between runs.
+
 ## What it does
 
 ```

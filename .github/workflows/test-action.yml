@@ -1,0 +1,72 @@
+name: Self-test the blog generator action
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-against-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    concurrency:
+      group: action-self-test
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build a minimal fixture blog
+        run: |
+          mkdir -p demo/posts
+          cat > demo/blog_registry.py <<'EOF'
+          """Demo blog registry.
+
+          Adding a new post:
+            1. Drop an HTML fragment (just the article body, no <html>/<head>) at posts/<slug>.html
+            2. Append one metadata entry to POSTS below.
+          """
+          POSTS = [
+              {
+                  "slug": "first-post",
+                  "title": "Why Shoulder-Season Road Trips Beat Summer Ones",
+                  "date": "2026-06-01",
+                  "excerpt": "Fewer crowds, easier bookings, better light.",
+                  "meta_desc": "Shoulder-season road trips: fewer crowds, easier campground bookings, cooler driving.",
+                  "minutes": 4,
+              },
+          ]
+          EOF
+          cat > demo/posts/first-post.html <<'EOF'
+          <p class="lead">Everyone plans road trips for July. The trips I remember are all from late September: same roads, half the traffic, campgrounds you can book a week out instead of six months.</p>
+          <h2 id="why">Why the shoulder season wins</h2>
+          <p>Crowds thin out after Labor Day while most scenic roads stay open for weeks. Lodging prices drop, trailhead parking exists again, and the light gets better for photos.</p>
+          <h2 id="tradeoffs">The tradeoffs</h2>
+          <p>Days get shorter and high passes can close early with the first storm, so check road status the week you leave rather than trusting summer assumptions.</p>
+          EOF
+
+      - name: Run the action against the fixture
+        id: gen
+        uses: ./
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          working_directory: demo
+          push_branch: "false"
+          create_pr: "false"
+
+      - name: Assert outputs
+        working-directory: demo
+        run: |
+          echo "post_file: ${{ steps.gen.outputs.post_file }}"
+          test -n "${{ steps.gen.outputs.post_file }}" || { echo "::error::no post_file output"; exit 1; }
+          git show HEAD --stat | head -20
+          git show HEAD --name-only | grep -q "coverage" || { echo "::error::coverage ledger missing from commit"; exit 1; }
+          python3 -c "import ast; ast.parse(open('blog_registry.py').read())"
+          python3 - <<'EOF'
+          import importlib.util
+          spec = importlib.util.spec_from_file_location("reg", "blog_registry.py")
+          m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          assert len(m.POSTS) == 2, f"expected 2 registry entries, got {len(m.POSTS)}"
+          print("registry OK:", [p["slug"] for p in m.POSTS])
+          EOF
+          echo "✅ self-test passed"

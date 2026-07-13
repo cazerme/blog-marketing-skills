@@ -17,6 +17,40 @@
 
 在装了本插件的任何项目里直接说"生成一篇新的 roadtrip 博客"（可指定路线/关键词），或显式召唤 `roadtrip-blogger` agent。配合对新文章跑 `/blog-marketing:blog-seo-geo`，就是完整的"生成 → 优化"闭环。
 
+## GitHub Action——定时自动生成博客
+
+本仓库同时是一个 GitHub Action：按你设定的日程运行 roadtrip-blogger agent，每篇新文章以 **Pull Request** 形式送达（绝不直推默认分支）。在你博客仓库的 Secrets 里添加 `ANTHROPIC_API_KEY`，然后：
+
+```yaml
+# .github/workflows/daily-blog.yml
+name: Daily blog post
+on:
+  schedule:
+    - cron: "0 6 * * *"     # 每天一篇，06:00 UTC
+  workflow_dispatch:          # 外加一个手动按钮
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: blog-generation      # 防止两次运行竞争覆盖账本
+  cancel-in-progress: false
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cazerme/blog-marketing-skills@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # topic: "icefields parkway itinerary"   # 可选；不填则自动选题
+          # working_directory: sites/blog          # 可选，monorepo 用
+```
+
+输入：`anthropic_api_key`（必填）· `topic` · `model` · `working_directory` · `create_pr` / `push_branch` · `base_branch` · `github_token`。输出：`post_file`、`branch`、`pr_url`。
+
+每个 PR 都带 agent 交接报告的入口——**合并前先看易腐声明表**（封路/许可/费用这类会过期的事实）。每次运行消耗你 Anthropic 账户的真实 API 费用，cron 频率就是成本旋钮。记得把 `<文章目录>/.coverage.md` 提交入库——它是历次运行之间的去重记忆。
+
 ## 它做什么
 
 ```

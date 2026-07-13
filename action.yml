@@ -1,0 +1,146 @@
+name: "AI Blog Post Generator — roadtrip-blogger"
+description: >-
+  Generates one complete, non-duplicating road-trip blog post in your site's own
+  format and opens it as a pull request. Powered by Claude Code and the
+  blog-marketing plugin's roadtrip-blogger agent: discovers your publishing
+  convention, enforces a coverage-ledger dedup gate, verifies perishable facts
+  against primary sources, and never pushes to your default branch.
+author: cazerme
+branding:
+  icon: edit-3
+  color: orange
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key (store it as a repository secret)"
+    required: true
+  github_token:
+    description: "Token used to push the branch and open the PR"
+    required: false
+    default: ${{ github.token }}
+  topic:
+    description: "Optional route/topic and/or target keyword for the post; omit to let the agent pick the best uncovered topic"
+    required: false
+    default: ""
+  model:
+    description: "Optional model override passed to Claude Code (defaults to the CLI's default)"
+    required: false
+    default: ""
+  create_pr:
+    description: "Open a pull request with the result (set to 'false' to only leave a branch)"
+    required: false
+    default: "true"
+  base_branch:
+    description: "Base branch for the PR"
+    required: false
+    default: ${{ github.event.repository.default_branch }}
+  plugin_ref:
+    description: "Marketplace source for the blog-marketing plugin"
+    required: false
+    default: "cazerme/blog-marketing-skills"
+  working_directory:
+    description: "Directory of the blog (for monorepos); the agent discovers the site from here"
+    required: false
+    default: "."
+  push_branch:
+    description: "Push the result branch to origin (set 'false' to keep the commit local — used by self-tests)"
+    required: false
+    default: "true"
+
+outputs:
+  post_file:
+    description: "Path of the generated post file"
+    value: ${{ steps.collect.outputs.post_file }}
+  branch:
+    description: "Branch containing the generated post"
+    value: ${{ steps.collect.outputs.branch }}
+  pr_url:
+    description: "URL of the opened pull request (empty when create_pr is false)"
+    value: ${{ steps.pr.outputs.pr_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Claude Code CLI
+      shell: bash
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        claude --version
+
+    - name: Install the blog-marketing plugin
+      shell: bash
+      run: |
+        claude plugin marketplace add "${{ inputs.plugin_ref }}"
+        claude plugin install blog-marketing@blog-marketing-skills --scope user
+
+    - name: Generate the post (roadtrip-blogger agent)
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        MODEL_ARG=""
+        if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
+        TOPIC_LINE=""
+        if [ -n "${{ inputs.topic }}" ]; then TOPIC_LINE="Requested topic/keyword: ${{ inputs.topic }}."; fi
+        claude -p "Use the roadtrip-blogger agent to generate exactly one new blog post for this repository. ${TOPIC_LINE} Follow the agent's workflow completely (site discovery, coverage-ledger dedup gate, fact verification, registry entry, ledger update). Do not commit — git is handled outside. Finish by printing the agent's handoff report." \
+          $MODEL_ARG \
+          --allowedTools "Agent,Task,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
+          --max-turns 100
+
+    - name: Collect results
+      id: collect
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        # the runner started from a clean checkout: every change is the agent's
+        if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+          echo "::error::No changes were produced — the agent likely stopped at a gate (see log above)."
+          exit 1
+        fi
+        POST_FILE=$(git status --porcelain | awk '$1 == "??" && $2 ~ /\.(html|md|markdown)$/ && $2 !~ /coverage/ {print $2; exit}')
+        DATE_SLUG=$(date -u +%Y%m%d-%H%M)
+        BRANCH="blog/auto-${DATE_SLUG}"
+        echo "post_file=${POST_FILE}" >> "$GITHUB_OUTPUT"
+        echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+
+    - name: Commit to a branch
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        git config user.name "blog-marketing-action[bot]"
+        git config user.email "blog-marketing-action[bot]@users.noreply.github.com"
+        git switch -c "${{ steps.collect.outputs.branch }}"
+        git add -A
+        git commit -m "blog: new post via roadtrip-blogger (${{ steps.collect.outputs.post_file }})"
+        if [ "${{ inputs.push_branch }}" = "true" ]; then
+          git push -u origin "${{ steps.collect.outputs.branch }}"
+        else
+          echo "push_branch=false — commit left local (self-test mode)"
+        fi
+
+    - name: Open the pull request
+      id: pr
+      if: ${{ inputs.create_pr == 'true' && inputs.push_branch == 'true' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        BODY=$(mktemp)
+        {
+          echo "Generated by the AI Blog Post Generator action (roadtrip-blogger agent)."
+          echo ""
+          echo "**Review before merging** — start with the agent's handoff report in the [action run log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}), especially the perishable-claims table (facts that change over time: closures, permits, fees)."
+          echo ""
+          echo "- Post: \`${{ steps.collect.outputs.post_file }}\`"
+          echo "- Includes the registry entry and the coverage-ledger update (dedup state for future runs)."
+          echo "- This branch was created by automation; nothing was pushed to ${{ inputs.base_branch }}."
+        } > "$BODY"
+        PR_URL=$(gh pr create \
+          --base "${{ inputs.base_branch }}" \
+          --head "${{ steps.collect.outputs.branch }}" \
+          --title "blog: new post — ${{ steps.collect.outputs.post_file }}" \
+          --body-file "$BODY")
+        echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
