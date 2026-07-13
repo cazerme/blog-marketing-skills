@@ -34,6 +34,7 @@ jobs:
         uses: ./optimize
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-5
           working_directory: demo2
           post_file: posts/desert-hikes.md
           keyword: "desert hiking water"
@@ -96,6 +97,7 @@ jobs:
         uses: ./
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-5
           working_directory: demo
           push_branch: "false"
           create_pr: "false"
@@ -158,6 +160,7 @@ jobs:
         uses: ./pipeline
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-5
           working_directory: demo3
           push_branch: "false"
           create_pr: "false"
