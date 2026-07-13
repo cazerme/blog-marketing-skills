@@ -51,6 +51,40 @@ Inputs: `anthropic_api_key` (required) · `topic` · `model` · `working_directo
 
 Each PR carries the agent's handoff report pointer — **review the perishable-claims table before merging** (closures, permits, fees: the facts that go stale). Every run costs real API tokens on your Anthropic account; the schedule above is the cost dial. Commit `<posts-dir>/.coverage.md` to your repo — it is the dedup memory between runs.
 
+### The optimizer action (`/optimize`)
+
+The SEO/GEO optimizer ships as a sub-action in this same repo (GitHub Marketplace lists one action per repo — the generator is the listed one; this one is referenced by path):
+
+```yaml
+      - uses: cazerme/blog-marketing-skills/optimize@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          post_file: posts/my-post.md
+          # keyword: "target keyword"    # optional; derived if omitted
+```
+
+It runs the `blog-seo-geo` skill (installing its aaron-marketing dependency on the runner), commits **only the post file** (backups/reports stay on the runner — the report becomes the PR body), and is idempotent: an already-optimized post yields `changed: false` and no PR.
+
+### The full loop: generate → optimize → one review
+
+Chain both actions in one daily workflow — each new post arrives born-optimized:
+
+```yaml
+      - uses: actions/checkout@v4
+      - id: gen
+        uses: cazerme/blog-marketing-skills@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          create_pr: "false"            # generator leaves a pushed branch
+      - uses: actions/checkout@v4
+        with: { ref: "${{ steps.gen.outputs.branch }}" }
+      - uses: cazerme/blog-marketing-skills/optimize@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          post_file: ${{ steps.gen.outputs.post_file }}
+          base_branch: ${{ github.event.repository.default_branch }}
+```
+
 ## What it does
 
 ```

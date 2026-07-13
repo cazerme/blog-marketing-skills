@@ -51,6 +51,24 @@ jobs:
 
 每个 PR 都带 agent 交接报告的入口——**合并前先看易腐声明表**（封路/许可/费用这类会过期的事实）。每次运行消耗你 Anthropic 账户的真实 API 费用，cron 频率就是成本旋钮。记得把 `<文章目录>/.coverage.md` 提交入库——它是历次运行之间的去重记忆。
 
+### 优化器 action（`/optimize`）
+
+SEO/GEO 优化器以**子 action** 形式住在同一仓库（GA Marketplace 一个仓库只上架一个条目——生成器占门面，优化器按路径引用）：
+
+```yaml
+      - uses: cazerme/blog-marketing-skills/optimize@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          post_file: posts/my-post.md
+          # keyword: "目标关键词"    # 可选；不填自动推导
+```
+
+它运行 `blog-seo-geo` 技能（会在 runner 上装好 aaron-marketing 依赖），**只把文章文件本身提交进 PR**（备份和报告留在 runner 上——报告内容直接变成 PR 正文），并且幂等：已优化过的文章会得到 `changed: false`、不开 PR。
+
+### 完整闭环：生成 → 优化 → 一次人审
+
+把两个 action 链在同一个每日 workflow 里，每篇新文章送到你手上时已经是优化完成体（配方见英文版 README 的 "The full loop" 一节）。
+
 ## 它做什么
 
 ```

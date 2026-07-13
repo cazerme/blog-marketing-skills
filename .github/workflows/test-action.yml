@@ -1,4 +1,4 @@
-name: Self-test the blog generator action
+name: Self-test the blog actions
 
 on:
   workflow_dispatch:
@@ -7,6 +7,40 @@ permissions:
   contents: read
 
 jobs:
+  optimize-against-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build a minimal fixture blog
+        run: |
+          mkdir -p demo2/posts
+          cp tests/fixtures/jekyll-post.md demo2/posts/desert-hikes.md
+          # commit the fixture so the action sees a clean baseline (its change
+          # detection assumes everything dirty was written by the agent)
+          git add demo2
+          git -c user.name=ci -c user.email=ci@test commit -m "test fixture" -q
+
+      - name: Run the optimizer action against the fixture
+        id: opt
+        uses: ./optimize
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          working_directory: demo2
+          post_file: posts/desert-hikes.md
+          keyword: "desert hiking water"
+          push_branch: "false"
+          create_pr: "false"
+
+      - name: Assert outputs
+        working-directory: demo2
+        run: |
+          echo "changed: ${{ steps.opt.outputs.changed }}"
+          test "${{ steps.opt.outputs.changed }}" = "true" || { echo "::error::optimizer reported no changes on a fixture with planted issues"; exit 1; }
+          grep -q 'description:' posts/desert-hikes.md || { echo "::error::front-matter description was not added"; exit 1; }
+          echo "✅ optimizer self-test passed"
+
   generate-against-fixture:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -44,6 +78,10 @@ jobs:
           <h2 id="tradeoffs">The tradeoffs</h2>
           <p>Days get shorter and high passes can close early with the first storm, so check road status the week you leave rather than trusting summer assumptions.</p>
           EOF
+          # commit the fixture so the action sees a clean baseline (its change
+          # detection and post_file discovery assume dirty files == agent output)
+          git add demo
+          git -c user.name=ci -c user.email=ci@test commit -m "test fixture" -q
 
       - name: Run the action against the fixture
         id: gen

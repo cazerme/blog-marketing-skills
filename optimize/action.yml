@@ -1,0 +1,160 @@
+name: "AI Blog SEO/GEO Optimizer"
+description: >-
+  Optimizes one existing blog post (HTML or Markdown) for SEO and GEO
+  (AI-citation readiness) and opens the result as a pull request. Runs the
+  blog-marketing plugin's blog-seo-geo skill, which orchestrates the
+  aaron-marketing pack: audit, restrained rewrites, a Gemini-targeted GEO pass,
+  head markup — behind a fail-closed engine (byte-exact splicing, link/image
+  preservation, number-fabrication guard).
+author: cazerme
+branding:
+  icon: trending-up
+  color: orange
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key (store it as a repository secret)"
+    required: true
+  post_file:
+    description: "Path (relative to working_directory) of the post to optimize"
+    required: true
+  keyword:
+    description: "Optional target keyword; omit to let the skill derive one"
+    required: false
+    default: ""
+  github_token:
+    description: "Token used to push the branch and open the PR"
+    required: false
+    default: ${{ github.token }}
+  model:
+    description: "Optional model override passed to Claude Code"
+    required: false
+    default: ""
+  create_pr:
+    description: "Open a pull request with the result"
+    required: false
+    default: "true"
+  base_branch:
+    description: "Base branch for the PR"
+    required: false
+    default: ${{ github.event.repository.default_branch }}
+  working_directory:
+    description: "Directory of the blog (for monorepos)"
+    required: false
+    default: "."
+  push_branch:
+    description: "Push the result branch to origin (set 'false' for self-tests)"
+    required: false
+    default: "true"
+  plugin_ref:
+    description: "Marketplace source for the blog-marketing plugin"
+    required: false
+    default: "cazerme/blog-marketing-skills"
+  aaron_ref:
+    description: "Marketplace source for the aaron-marketing plugin (the skill's dependency)"
+    required: false
+    default: "aaron-he-zhu/aaron-marketing-skills"
+
+outputs:
+  changed:
+    description: "'true' if the post was modified; 'false' if it was already optimal"
+    value: ${{ steps.collect.outputs.changed }}
+  branch:
+    description: "Branch containing the optimized post (empty when unchanged)"
+    value: ${{ steps.collect.outputs.branch }}
+  pr_url:
+    description: "URL of the opened pull request (empty when unchanged or create_pr is false)"
+    value: ${{ steps.pr.outputs.pr_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Claude Code CLI
+      shell: bash
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        claude --version
+
+    - name: Install the plugins (blog-marketing + its aaron-marketing dependency)
+      shell: bash
+      run: |
+        claude plugin marketplace add "${{ inputs.aaron_ref }}"
+        claude plugin install aaron-marketing@aaron --scope user
+        claude plugin marketplace add "${{ inputs.plugin_ref }}"
+        claude plugin install blog-marketing@blog-marketing-skills --scope user
+
+    - name: Optimize the post (blog-seo-geo skill)
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        MODEL_ARG=""
+        if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
+        KW=""
+        if [ -n "${{ inputs.keyword }}" ]; then KW=" \"${{ inputs.keyword }}\""; fi
+        claude -p "/blog-marketing:blog-seo-geo ${{ inputs.post_file }}${KW}" \
+          $MODEL_ARG \
+          --allowedTools "Skill,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
+          --max-turns 100
+
+    - name: Collect results
+      id: collect
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        if git status --porcelain -- "${{ inputs.post_file }}" | grep -q .; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=blog/optimize-$(date -u +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          echo "branch=" >> "$GITHUB_OUTPUT"
+          echo "::notice::The post was not modified — likely already optimized (the skill is idempotent by design)."
+        fi
+
+    - name: Commit the optimized post
+      if: ${{ steps.collect.outputs.changed == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        git config user.name "blog-marketing-action[bot]"
+        git config user.email "blog-marketing-action[bot]@users.noreply.github.com"
+        git switch -c "${{ steps.collect.outputs.branch }}"
+        git add -- "${{ inputs.post_file }}"
+        git commit -m "blog: SEO/GEO optimization of ${{ inputs.post_file }}"
+        if [ "${{ inputs.push_branch }}" = "true" ]; then
+          git push -u origin "${{ steps.collect.outputs.branch }}"
+        else
+          echo "push_branch=false — commit left local (self-test mode)"
+        fi
+
+    - name: Open the pull request
+      id: pr
+      if: ${{ steps.collect.outputs.changed == 'true' && inputs.create_pr == 'true' && inputs.push_branch == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        BODY=$(mktemp)
+        BASE=$(basename "${{ inputs.post_file }}")
+        REPORT=$(ls .seo-optimizer/reports/*"${BASE%.*}"* 2>/dev/null | head -1 || true)
+        if [ -z "$REPORT" ]; then
+          REPORT=$(dirname "${{ inputs.post_file }}")/.seo-optimizer/reports/"${BASE%.*}".seo-report.md
+        fi
+        if [ -f "$REPORT" ]; then
+          cp "$REPORT" "$BODY"
+        else
+          echo "SEO/GEO optimization of \`${{ inputs.post_file }}\` — see the action run log for the full report." > "$BODY"
+        fi
+        {
+          echo ""
+          echo "---"
+          echo "Opened by the AI Blog SEO/GEO Optimizer action. Only the post file is committed; backups stay on the runner."
+        } >> "$BODY"
+        PR_URL=$(gh pr create \
+          --base "${{ inputs.base_branch }}" \
+          --head "${{ steps.collect.outputs.branch }}" \
+          --title "blog: SEO/GEO optimization — ${{ inputs.post_file }}" \
+          --body-file "$BODY")
+        echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
