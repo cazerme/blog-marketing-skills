@@ -8,6 +8,10 @@ on:
         type: choice
         default: all
         options: [all, generate, optimize, pipeline]
+      model:
+        description: "Model for the test runs"
+        type: string
+        default: claude-sonnet-5
 
 permissions:
   contents: read
@@ -34,7 +38,7 @@ jobs:
         uses: ./optimize
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-sonnet-5
+          model: ${{ inputs.model }}
           working_directory: demo2
           post_file: posts/desert-hikes.md
           keyword: "desert hiking water"
@@ -97,7 +101,7 @@ jobs:
         uses: ./
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-sonnet-5
+          model: ${{ inputs.model }}
           working_directory: demo
           push_branch: "false"
           create_pr: "false"
@@ -160,7 +164,7 @@ jobs:
         uses: ./pipeline
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-sonnet-5
+          model: ${{ inputs.model }}
           working_directory: demo3
           push_branch: "false"
           create_pr: "false"
