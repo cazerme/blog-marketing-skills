@@ -67,7 +67,16 @@ It runs the `blog-seo-geo` skill (installing its aaron-marketing dependency on t
 
 ### The full loop: generate → optimize → one review
 
-Chain both actions in one daily workflow — each new post arrives born-optimized:
+Simplest form — the **pipeline sub-action** does both in one step and opens a single PR whose body is the optimization report:
+
+```yaml
+      - uses: actions/checkout@v4
+      - uses: cazerme/blog-marketing-skills/pipeline@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+Or chain the two actions yourself for finer control:
 
 ```yaml
       - uses: actions/checkout@v4

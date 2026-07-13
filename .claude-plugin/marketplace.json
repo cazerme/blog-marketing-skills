@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Blog marketing skills for Claude Code: SEO + GEO optimization of blog posts, built on top of the aaron-marketing skill pack.",
-    "version": "0.7.0"
+    "version": "0.8.0"
   },
   "plugins": [
     {
       "name": "blog-marketing",
       "source": "./",
       "description": "Generate and optimize blog posts: the roadtrip-blogger agent writes complete, non-duplicating North American road-trip posts in your site's own format; the blog-seo-geo skill optimizes any local post (HTML/Markdown, fragments included) for SEO and GEO via aaron-marketing, with fail-closed integrity checks and a number-fabrication guard.",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "category": "marketing",
       "tags": [
         "seo",

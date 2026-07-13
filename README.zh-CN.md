@@ -67,7 +67,16 @@ SEO/GEO 优化器以**子 action** 形式住在同一仓库（GA Marketplace 一
 
 ### 完整闭环：生成 → 优化 → 一次人审
 
-把两个 action 链在同一个每日 workflow 里，每篇新文章送到你手上时已经是优化完成体（配方见英文版 README 的 "The full loop" 一节）。
+最省事的形态——**pipeline 子 action** 一步做完两件事，开一个 PR、正文就是优化报告：
+
+```yaml
+      - uses: actions/checkout@v4
+      - uses: cazerme/blog-marketing-skills/pipeline@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+想精细控制的也可以自己把两个 action 链起来（配方见英文版 README）。
 
 ## 它做什么
 

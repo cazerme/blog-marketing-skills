@@ -1,0 +1,174 @@
+name: "AI Blog Pipeline — generate + SEO/GEO optimize"
+description: >-
+  The full loop in one step: generates one non-duplicating road-trip blog post
+  (roadtrip-blogger agent), immediately optimizes it for SEO and GEO
+  (blog-seo-geo skill over the aaron-marketing pack), and opens a single pull
+  request with the born-optimized post. Never pushes to your default branch.
+author: cazerme
+branding:
+  icon: refresh-cw
+  color: orange
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key (store it as a repository secret)"
+    required: true
+  github_token:
+    description: "Token used to push the branch and open the PR"
+    required: false
+    default: ${{ github.token }}
+  topic:
+    description: "Optional route/topic for the post; omit to let the agent pick the best uncovered topic"
+    required: false
+    default: ""
+  model:
+    description: "Optional model override passed to Claude Code"
+    required: false
+    default: ""
+  create_pr:
+    description: "Open a pull request with the result"
+    required: false
+    default: "true"
+  base_branch:
+    description: "Base branch for the PR"
+    required: false
+    default: ${{ github.event.repository.default_branch }}
+  working_directory:
+    description: "Directory of the blog (for monorepos)"
+    required: false
+    default: "."
+  push_branch:
+    description: "Push the result branch to origin (set 'false' for self-tests)"
+    required: false
+    default: "true"
+  plugin_ref:
+    description: "Marketplace source for the blog-marketing plugin"
+    required: false
+    default: "cazerme/blog-marketing-skills"
+  aaron_ref:
+    description: "Marketplace source for the aaron-marketing plugin"
+    required: false
+    default: "aaron-he-zhu/aaron-marketing-skills"
+
+outputs:
+  post_file:
+    description: "Path of the generated (and optimized) post file"
+    value: ${{ steps.collect.outputs.post_file }}
+  branch:
+    description: "Branch containing the result"
+    value: ${{ steps.collect.outputs.branch }}
+  pr_url:
+    description: "URL of the opened pull request (empty when create_pr is false)"
+    value: ${{ steps.pr.outputs.pr_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Claude Code CLI
+      shell: bash
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        claude --version
+
+    - name: Install the plugins
+      shell: bash
+      run: |
+        claude plugin marketplace add "${{ inputs.aaron_ref }}"
+        claude plugin install aaron-marketing@aaron --scope user
+        claude plugin marketplace add "${{ inputs.plugin_ref }}"
+        claude plugin install blog-marketing@blog-marketing-skills --scope user
+
+    - name: Generate the post (roadtrip-blogger agent)
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        MODEL_ARG=""
+        if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
+        TOPIC_LINE=""
+        if [ -n "${{ inputs.topic }}" ]; then TOPIC_LINE="Requested topic/keyword: ${{ inputs.topic }}."; fi
+        claude -p "Use the roadtrip-blogger agent to generate exactly one new blog post for this repository. ${TOPIC_LINE} Follow the agent's workflow completely. Do not commit — git is handled outside. Finish by printing the agent's handoff report." \
+          $MODEL_ARG \
+          --allowedTools "Agent,Task,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
+          --max-turns 100
+
+    - name: Locate the generated post
+      id: collect
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        POST_FILE=$(git status --porcelain | awk '$1 == "??" && $2 ~ /\.(html|md|markdown)$/ && $2 !~ /coverage/ {print $2; exit}')
+        if [ -z "$POST_FILE" ]; then
+          echo "::error::No generated post found — the agent likely stopped at a gate (see log above)."
+          exit 1
+        fi
+        echo "post_file=${POST_FILE}" >> "$GITHUB_OUTPUT"
+        echo "branch=blog/daily-$(date -u +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+
+    - name: Optimize the post (blog-seo-geo skill)
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        MODEL_ARG=""
+        if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
+        claude -p "/blog-marketing:blog-seo-geo ${{ steps.collect.outputs.post_file }}" \
+          $MODEL_ARG \
+          --allowedTools "Skill,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
+          --max-turns 100
+
+    - name: Harvest the report, drop runner-only artifacts
+      id: report
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        BODY="$RUNNER_TEMP/pr-body.md"
+        REPORT=$(find . -path '*/.seo-optimizer/reports/*.md' | head -1 || true)
+        if [ -n "$REPORT" ] && [ -f "$REPORT" ]; then
+          cp "$REPORT" "$BODY"
+        else
+          echo "Generated and optimized by the AI Blog Pipeline — see the action run log for both reports." > "$BODY"
+        fi
+        {
+          echo ""
+          echo "---"
+          echo "One post, born optimized: generated by roadtrip-blogger, then passed through blog-seo-geo."
+          echo "Review the perishable-claims table in the generation report (action run log) before merging."
+        } >> "$BODY"
+        # backups/reports are runner-only artifacts — never ship them in the PR
+        find . -type d -name '.seo-optimizer' -exec rm -rf {} +
+        echo "body=${BODY}" >> "$GITHUB_OUTPUT"
+
+    - name: Commit to a branch
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        git config user.name "blog-marketing-action[bot]"
+        git config user.email "blog-marketing-action[bot]@users.noreply.github.com"
+        git switch -c "${{ steps.collect.outputs.branch }}"
+        git add -A
+        git commit -m "blog: new optimized post via pipeline (${{ steps.collect.outputs.post_file }})"
+        if [ "${{ inputs.push_branch }}" = "true" ]; then
+          git push -u origin "${{ steps.collect.outputs.branch }}"
+        else
+          echo "push_branch=false — commit left local (self-test mode)"
+        fi
+
+    - name: Open the pull request
+      id: pr
+      if: ${{ inputs.create_pr == 'true' && inputs.push_branch == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        PR_URL=$(gh pr create \
+          --base "${{ inputs.base_branch }}" \
+          --head "${{ steps.collect.outputs.branch }}" \
+          --title "blog: new optimized post — ${{ steps.collect.outputs.post_file }}" \
+          --body-file "${{ steps.report.outputs.body }}")
+        echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"

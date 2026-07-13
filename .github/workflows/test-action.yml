@@ -2,12 +2,19 @@ name: Self-test the blog actions
 
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: "Which self-test to run (each run costs real API tokens)"
+        type: choice
+        default: all
+        options: [all, generate, optimize, pipeline]
 
 permissions:
   contents: read
 
 jobs:
   optimize-against-fixture:
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'optimize' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -42,6 +49,7 @@ jobs:
           echo "✅ optimizer self-test passed"
 
   generate-against-fixture:
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'generate' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
@@ -108,3 +116,65 @@ jobs:
           print("registry OK:", [p["slug"] for p in m.POSTS])
           EOF
           echo "✅ self-test passed"
+
+  pipeline-against-fixture:
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'pipeline' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build a minimal fixture blog
+        run: |
+          mkdir -p demo3/posts
+          cat > demo3/blog_registry.py <<'FIXEOF'
+          """Demo blog registry.
+
+          Adding a new post:
+            1. Drop an HTML fragment (just the article body, no <html>/<head>) at posts/<slug>.html
+            2. Append one metadata entry to POSTS below.
+          """
+          POSTS = [
+              {
+                  "slug": "first-post",
+                  "title": "Why Shoulder-Season Road Trips Beat Summer Ones",
+                  "date": "2026-06-01",
+                  "excerpt": "Fewer crowds, easier bookings, better light.",
+                  "meta_desc": "Shoulder-season road trips: fewer crowds, easier campground bookings, cooler driving.",
+                  "minutes": 4,
+              },
+          ]
+          FIXEOF
+          cat > demo3/posts/first-post.html <<'FIXEOF'
+          <p class="lead">Everyone plans road trips for July. The trips I remember are all from late September: same roads, half the traffic, campgrounds you can book a week out.</p>
+          <h2 id="why">Why the shoulder season wins</h2>
+          <p>Crowds thin out after Labor Day while most scenic roads stay open for weeks. Lodging prices drop and the light gets better for photos.</p>
+          FIXEOF
+          git add demo3
+          git -c user.name=ci -c user.email=ci@test commit -m "test fixture" -q
+
+      - name: Run the pipeline action against the fixture
+        id: pipe
+        uses: ./pipeline
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          working_directory: demo3
+          push_branch: "false"
+          create_pr: "false"
+
+      - name: Assert outputs
+        working-directory: demo3
+        run: |
+          test -n "${{ steps.pipe.outputs.post_file }}" || { echo "::error::no post_file output"; exit 1; }
+          git show HEAD --name-only | grep -q "coverage" || { echo "::error::ledger missing from commit"; exit 1; }
+          if find . -type d -name '.seo-optimizer' | grep -q .; then
+            echo "::error::runner-only artifacts leaked into the tree"; exit 1
+          fi
+          python3 - <<'FIXEOF'
+          import importlib.util
+          spec = importlib.util.spec_from_file_location("reg", "blog_registry.py")
+          m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          assert len(m.POSTS) == 2, f"expected 2 registry entries, got {len(m.POSTS)}"
+          print("registry OK:", [p["slug"] for p in m.POSTS])
+          FIXEOF
+          echo "✅ pipeline self-test passed"
