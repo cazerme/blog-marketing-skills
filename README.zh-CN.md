@@ -4,7 +4,7 @@
 
 为博客文章做 **SEO**（Google 排名）和 **GEO**（被 Gemini 这类 AI 引擎引用）优化的 Claude Code 技能。构建在开源技能包 [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) 之上：本插件负责编排它的审计/写作技能，并自带一套确定性的、fail-closed 的引擎，安全地原地修改你的 HTML 或 Markdown 文件。
 
-> **状态：v0.5。** 一个技能（`blog-seo-geo`）+ 一个 agent（`roadtrip-blogger`）。技能的能力与边界见[能力边界](#能力边界v04)。
+> **状态：v0.9。** 三个 GitHub Action + 一个技能（`blog-seo-geo`）+ 一个 agent（`roadtrip-blogger`）。技能的能力与边界见[能力边界](#能力边界v04)。
 
 ## roadtrip-blogger agent
 
@@ -53,7 +53,7 @@ jobs:
           # working_directory: sites/blog          # 可选，monorepo 用
 ```
 
-输入：`anthropic_api_key`（必填）· `topic` · `model` · `working_directory` · `create_pr` / `push_branch` · `base_branch` · `github_token`。输出：`post_file`、`branch`、`pr_url`。
+输入：`claude_code_oauth_token` **或** `anthropic_api_key`（二选一必填）· `topic` · `model` · `working_directory` · `create_pr` / `push_branch` · `base_branch` · `github_token`。输出：`post_file`、`branch`、`pr_url`。
 
 每个 PR 都带 agent 交接报告的入口——**合并前先看易腐声明表**（封路/许可/费用这类会过期的事实）。每次运行消耗你 Anthropic 账户的真实 API 费用，cron 频率就是成本旋钮。记得把 `<文章目录>/.coverage.md` 提交入库——它是历次运行之间的去重记忆。
 

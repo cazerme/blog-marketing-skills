@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 Claude Code skills that optimize blog posts for **SEO** (Google rankings) and **GEO** (getting cited by AI engines like Gemini). Built on top of the open-source [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) skill pack: this plugin orchestrates its auditing/writing skills and adds a deterministic, fail-closed engine for safely editing your HTML or Markdown files in place.
 
-> **Status: v0.5.** One skill (`blog-seo-geo`) + one agent (`roadtrip-blogger`). See [Scope](#scope-v04) for exactly what the skill does and refuses to do.
+> **Status: v0.9.** Three GitHub Actions + one skill (`blog-seo-geo`) + one agent (`roadtrip-blogger`). See [Scope](#scope-v04) for exactly what the skill does and refuses to do.
 
 ## The roadtrip-blogger agent
 
@@ -53,7 +53,7 @@ jobs:
           # working_directory: sites/blog          # optional, for monorepos
 ```
 
-Inputs: `anthropic_api_key` (required) · `topic` · `model` · `working_directory` · `create_pr` / `push_branch` · `base_branch` · `github_token`. Outputs: `post_file`, `branch`, `pr_url`.
+Inputs: `claude_code_oauth_token` **or** `anthropic_api_key` (one required) · `topic` · `model` · `working_directory` · `create_pr` / `push_branch` · `base_branch` · `github_token`. Outputs: `post_file`, `branch`, `pr_url`.
 
 Each PR carries the agent's handoff report pointer — **review the perishable-claims table before merging** (closures, permits, fees: the facts that go stale). Every run costs real API tokens on your Anthropic account; the schedule above is the cost dial. Commit `<posts-dir>/.coverage.md` to your repo — it is the dedup memory between runs.
 
