@@ -1,10 +1,5 @@
 name: "AI Blog Post Generator — roadtrip-blogger"
-description: >-
-  Generates one complete, non-duplicating road-trip blog post in your site's own
-  format and opens it as a pull request. Powered by Claude Code and the
-  blog-marketing plugin's roadtrip-blogger agent: discovers your publishing
-  convention, enforces a coverage-ledger dedup gate, verifies perishable facts
-  against primary sources, and never pushes to your default branch.
+description: "Generates a non-duplicating, fact-checked road-trip blog post with Claude Code and opens it as a pull request."
 author: cazerme
 branding:
   icon: edit-3
