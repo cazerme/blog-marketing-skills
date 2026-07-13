@@ -38,6 +38,7 @@ jobs:
         uses: ./optimize
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ inputs.model }}
           working_directory: demo2
           post_file: posts/desert-hikes.md
@@ -101,6 +102,7 @@ jobs:
         uses: ./
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ inputs.model }}
           working_directory: demo
           push_branch: "false"
@@ -164,6 +166,7 @@ jobs:
         uses: ./pipeline
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ inputs.model }}
           working_directory: demo3
           push_branch: "false"

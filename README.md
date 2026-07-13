@@ -19,7 +19,12 @@ Ask for it in any project where the plugin is installed: *"generate a new roadtr
 
 ## GitHub Action — scheduled blog generation
 
-This repo is also a GitHub Action: run the roadtrip-blogger agent on a schedule and receive each new post as a **pull request** (never a push to your default branch). Add `ANTHROPIC_API_KEY` to your blog repo's secrets, then:
+This repo is also a GitHub Action: run the roadtrip-blogger agent on a schedule and receive each new post as a **pull request** (never a push to your default branch). Two ways to authenticate (add one as a repo secret):
+
+- **Claude subscription** (Pro/Max): run `claude setup-token` locally and save the token as `CLAUDE_CODE_OAUTH_TOKEN` — runs bill your subscription, no API credits needed
+- **API key**: save `ANTHROPIC_API_KEY` — bills Console credits (needs a tier whose input-tokens-per-minute limit fits an agent session; free-tier orgs will hit 429)
+
+Then:
 
 ```yaml
 # .github/workflows/daily-blog.yml
@@ -42,7 +47,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: cazerme/blog-marketing-skills@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}   # the API-billing alternative
           # topic: "icefields parkway itinerary"   # optional; omit to auto-pick
           # working_directory: sites/blog          # optional, for monorepos
 ```

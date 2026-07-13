@@ -19,7 +19,12 @@
 
 ## GitHub Action——定时自动生成博客
 
-本仓库同时是一个 GitHub Action：按你设定的日程运行 roadtrip-blogger agent，每篇新文章以 **Pull Request** 形式送达（绝不直推默认分支）。在你博客仓库的 Secrets 里添加 `ANTHROPIC_API_KEY`，然后：
+本仓库同时是一个 GitHub Action：按你设定的日程运行 roadtrip-blogger agent，每篇新文章以 **Pull Request** 形式送达（绝不直推默认分支）。两种认证方式（任选一种加为仓库 Secret）：
+
+- **Claude 订阅**（Pro/Max）：本地运行 `claude setup-token`，把令牌存为 `CLAUDE_CODE_OAUTH_TOKEN`——费用走你的订阅，不需要 API credits
+- **API key**：存为 `ANTHROPIC_API_KEY`——走 Console credits 计费（账户档位的每分钟输入限额必须装得下 agent 会话；免费档会撞 429）
+
+然后：
 
 ```yaml
 # .github/workflows/daily-blog.yml
@@ -42,7 +47,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: cazerme/blog-marketing-skills@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}   # API 计费的替代方式
           # topic: "icefields parkway itinerary"   # 可选；不填则自动选题
           # working_directory: sites/blog          # 可选，monorepo 用
 ```

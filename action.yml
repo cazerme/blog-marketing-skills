@@ -12,8 +12,13 @@ branding:
 
 inputs:
   anthropic_api_key:
-    description: "Anthropic API key (store it as a repository secret)"
-    required: true
+    description: "Anthropic API key (or use claude_code_oauth_token instead)"
+    required: false
+    default: ""
+  claude_code_oauth_token:
+    description: "Claude Code OAuth token from `claude setup-token` — bills your Claude subscription instead of API credits. Takes precedence when both are set."
+    required: false
+    default: ""
   github_token:
     description: "Token used to push the branch and open the PR"
     required: false
@@ -77,8 +82,16 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        IN_API_KEY: ${{ inputs.anthropic_api_key }}
+        IN_OAUTH: ${{ inputs.claude_code_oauth_token }}
       run: |
+        if [ -n "$IN_OAUTH" ]; then
+          export CLAUDE_CODE_OAUTH_TOKEN="$IN_OAUTH"
+        elif [ -n "$IN_API_KEY" ]; then
+          export ANTHROPIC_API_KEY="$IN_API_KEY"
+        else
+          echo "::error::Provide anthropic_api_key or claude_code_oauth_token"; exit 1
+        fi
         MODEL_ARG=""
         if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
         TOPIC_LINE=""
