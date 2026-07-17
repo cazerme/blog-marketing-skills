@@ -69,7 +69,7 @@ SEO/GEO 优化器以**子 action** 形式住在同一仓库（GA Marketplace 一
           # keyword: "目标关键词"    # 可选；不填自动推导
 ```
 
-它运行 `blog-seo-geo` 技能（会在 runner 上装好 aaron-marketing 依赖），**只把文章文件本身提交进 PR**（备份和报告留在 runner 上——报告内容直接变成 PR 正文），并且幂等：已优化过的文章会得到 `changed: false`、不开 PR。
+它运行 `blog-seo-geo` 技能（会在 runner 上装好 aaron-marketing 依赖，且锁定在 playbook 验证过的版本——可用 `aaron_version` 输入覆盖，设为 `""` 则装最新版），**只把文章文件本身提交进 PR**（备份和报告留在 runner 上——报告内容直接变成 PR 正文），并且幂等：已优化过的文章会得到 `changed: false`、不开 PR。
 
 ### 完整闭环：生成 → 优化 → 一次人审
 
@@ -92,7 +92,7 @@ SEO/GEO 优化器以**子 action** 形式住在同一仓库（GA Marketplace 一
 ```
 
 1. 把文章解析成内容块，跑一套确定性机械检查（title/meta、标题层级、图片 alt、链接……）→ 基线分
-2. 用 `aaron-marketing:on-page-seo-auditor` 诊断问题
+2. 用 `aaron-marketing:on-page-seo-checker` 诊断问题
 3. 用 `aaron-marketing:content-writer`（refresh 模式）改写内容块——事实、链接、图片全部保留，不编造任何东西
 4. 用 `aaron-marketing:geo-content-optimizer` 跑 **GEO pass**：把关键段落改写成 AI 引擎（Gemini 式引用）可直接摘引的形态，必要时补答案/FAQ 块——只复述文章已有的内容
 5. 用 `aaron-marketing:serp-markup-builder` 生成头部标记：title + meta description 直接写回完整 HTML 文档和 Markdown front matter；OG/Twitter/JSON-LD 以可直接粘贴的形式进报告
@@ -169,4 +169,4 @@ claude plugin validate .              # 清单校验
 
 ## 许可证
 
-MIT。基于 aaron-marketing 16.1.0 测试。
+MIT。基于 aaron-marketing 18.0.0 测试（action 默认安装这个上游版本，可用 `aaron_version` 输入覆盖）。

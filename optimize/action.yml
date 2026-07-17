@@ -59,6 +59,10 @@ inputs:
     description: "Marketplace source for the aaron-marketing plugin (the skill's dependency)"
     required: false
     default: "aaron-he-zhu/aaron-marketing-skills"
+  aaron_version:
+    description: "aaron-marketing version to install (git tag v<version> of aaron_ref). Defaults to the playbook-tested baseline; set '' to install latest (unpinned)."
+    required: false
+    default: "18.0.0"
 
 outputs:
   changed:
@@ -83,7 +87,20 @@ runs:
     - name: Install the plugins (blog-marketing + its aaron-marketing dependency)
       shell: bash
       run: |
-        claude plugin marketplace add "${{ inputs.aaron_ref }}"
+        AARON_REF="${{ inputs.aaron_ref }}"
+        AARON_VERSION="${{ inputs.aaron_version }}"
+        if [ -n "$AARON_VERSION" ]; then
+          # Pin to the playbook-tested version: clone upstream at its release
+          # tag and register the clone as a local marketplace.
+          case "$AARON_REF" in
+            *://*) AARON_URL="$AARON_REF" ;;
+            *)     AARON_URL="https://github.com/$AARON_REF" ;;
+          esac
+          git clone --quiet --depth 1 --branch "v$AARON_VERSION" "$AARON_URL" "$RUNNER_TEMP/aaron-marketing-pinned"
+          claude plugin marketplace add "$RUNNER_TEMP/aaron-marketing-pinned"
+        else
+          claude plugin marketplace add "$AARON_REF"
+        fi
         claude plugin install aaron-marketing@aaron --scope user
         claude plugin marketplace add "${{ inputs.plugin_ref }}"
         claude plugin install blog-marketing@blog-marketing-skills --scope user

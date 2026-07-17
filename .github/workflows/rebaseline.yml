@@ -1,0 +1,184 @@
+name: Rebaseline aaron-marketing playbook
+
+# Upgrade bot for the aaron-marketing dependency. Weekly (and on demand) it
+# compares upstream's current release against the playbook baseline. On drift
+# it has Claude re-verify the four call-point contracts against the new tag,
+# rewrite the playbook + pins + docs, then opens a PR and dispatches the
+# optimize self-test on the PR branch. Detection is free; the agent only runs
+# (and only costs tokens) when upstream actually released something new.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model for the rebaseline agent"
+        type: string
+        default: claude-sonnet-5
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: rebaseline
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: aaron-he-zhu/aaron-marketing-skills
+  PLAYBOOK: skills/blog-seo-geo/references/pipeline-playbook.md
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      drifted: ${{ steps.cmp.outputs.drifted }}
+      baseline: ${{ steps.cmp.outputs.baseline }}
+      upstream: ${{ steps.cmp.outputs.upstream }}
+      branch: ${{ steps.cmp.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare upstream release against the playbook baseline
+        id: cmp
+        run: |
+          UP=$(curl -fsSL "https://raw.githubusercontent.com/$UPSTREAM/main/VERSIONS.md" \
+            | grep -oE '\*\*Current release\*\*: `[0-9]+\.[0-9]+\.[0-9]+`' \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          BASE=$(grep -oE 'Tested against: aaron-marketing [0-9]+\.[0-9]+\.[0-9]+' "$PLAYBOOK" \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          test -n "$UP"   || { echo "::error::could not parse upstream version from VERSIONS.md"; exit 1; }
+          test -n "$BASE" || { echo "::error::could not parse baseline from $PLAYBOOK"; exit 1; }
+          BRANCH="rebaseline/aaron-$UP"
+          echo "baseline=$BASE"  >> "$GITHUB_OUTPUT"
+          echo "upstream=$UP"    >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH"  >> "$GITHUB_OUTPUT"
+          if [ "$UP" = "$BASE" ]; then
+            echo "drifted=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::baseline $BASE matches upstream — nothing to do"
+          elif git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "drifted=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::drift $BASE → $UP already has branch $BRANCH — PR pending review"
+          else
+            echo "drifted=true"  >> "$GITHUB_OUTPUT"
+            echo "::warning::aaron-marketing drifted: playbook $BASE, upstream $UP"
+          fi
+
+  rebaseline:
+    needs: detect
+    if: ${{ needs.detect.outputs.drifted == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Re-verify call points and rewrite the playbook
+        env:
+          IN_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          IN_OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ needs.detect.outputs.baseline }}
+          UP: ${{ needs.detect.outputs.upstream }}
+        run: |
+          if [ -n "$IN_OAUTH" ]; then
+            export CLAUDE_CODE_OAUTH_TOKEN="$IN_OAUTH"
+          elif [ -n "$IN_API_KEY" ]; then
+            export ANTHROPIC_API_KEY="$IN_API_KEY"
+          else
+            echo "::error::Provide ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret"; exit 1
+          fi
+          claude -p "Rebaseline this repo's aaron-marketing dependency from $BASE to $UP.
+
+          $PLAYBOOK records the natural-language contracts of the four upstream sub-skills this plugin invokes, tested against aaron-marketing $BASE. Upstream ($UPSTREAM on GitHub) is now at $UP. Your job:
+
+          1. Read the current playbook and note the four call points.
+          2. For every release tag between v$BASE (exclusive) and v$UP (inclusive) — list tags with 'gh api repos/$UPSTREAM/tags' — fetch that tag's VERSIONS.md (raw.githubusercontent.com/$UPSTREAM/<tag>/VERSIONS.md) and collect the 'Current release' changelog paragraph. Note every skill rename it declares.
+          3. For each of the four call points, locate its SKILL.md in the upstream tree at v$BASE and at v$UP ('gh api repos/$UPSTREAM/git/trees/<tag>?recursive=1' and filter for SKILL.md paths — paths and names may have moved) and compare the contracts: name, modes/phases, inputs it expects, outputs it promises, any new mandatory behavior.
+          4. Update this repo accordingly:
+             - $PLAYBOOK: the 'Tested against: aaron-marketing <version>' line (keep that exact wording — it is machine-read), the call-point table, the call-point notes, and the Known renames table (append any new renames; keep old rows).
+             - skills/blog-seo-geo/SKILL.md: any step whose invocation must change (skill names, modes, new non-blocking behaviors to absorb); bump its frontmatter minor version.
+             - README.md and README.zh-CN.md: skill names in the 'What it does' step list and the 'Tested against' line near the end of each.
+             - optimize/action.yml and pipeline/action.yml: the aaron_version input's default (must equal the new baseline).
+             - .claude-plugin/plugin.json and .claude-plugin/marketplace.json: bump the plugin minor version (all three version fields).
+          5. Contract-change policy: renames and additive behaviors get absorbed into the playbook. If a call point was REMOVED with no rename, or its output can no longer satisfy what the playbook's 'We expect back' column needs, do NOT invent a replacement — keep that row pointing at the last working name, and record the problem clearly in the summary file as NEEDS-HUMAN.
+          6. Write a concise PR-body summary to /tmp/rebaseline-summary.md: what changed upstream (per call point), what you edited, anything NEEDS-HUMAN.
+
+          Rules: only edit the files listed in step 4; do not run git commit/push; do not create other files inside the repo; base every contract claim on the fetched tag content, not memory." \
+            --model "${{ inputs.model || 'claude-sonnet-5' }}" \
+            --allowedTools "Bash,Read,Write,Edit,Grep,Glob,WebFetch" \
+            --max-turns 80
+
+      - name: Guard the diff (only expected files may change)
+        run: |
+          CHANGED=$(git status --porcelain=v1 | sed 's/^...//' | sed 's/.* -> //')
+          test -n "$CHANGED" || { echo "::error::agent made no changes"; exit 1; }
+          echo "$CHANGED"
+          while IFS= read -r f; do
+            case "$f" in
+              skills/blog-seo-geo/SKILL.md|skills/blog-seo-geo/references/pipeline-playbook.md) ;;
+              README.md|README.zh-CN.md) ;;
+              optimize/action.yml|pipeline/action.yml) ;;
+              .claude-plugin/plugin.json|.claude-plugin/marketplace.json) ;;
+              *) echo "::error::unexpected file changed: $f"; exit 1 ;;
+            esac
+          done <<< "$CHANGED"
+
+      - name: Assert baseline and pins agree
+        env:
+          UP: ${{ needs.detect.outputs.upstream }}
+        run: |
+          grep -q "Tested against: aaron-marketing $UP" "$PLAYBOOK" \
+            || { echo "::error::playbook baseline was not updated to $UP"; exit 1; }
+          for f in optimize/action.yml pipeline/action.yml; do
+            awk '/aaron_version:/{found=1} found && /default:/{print; exit}' "$f" | grep -q "\"$UP\"" \
+              || { echo "::error::$f aaron_version default was not updated to $UP"; exit 1; }
+          done
+
+      - name: Push branch and open the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ needs.detect.outputs.baseline }}
+          UP: ${{ needs.detect.outputs.upstream }}
+          BRANCH: ${{ needs.detect.outputs.branch }}
+        run: |
+          git config user.name "rebaseline-bot[bot]"
+          git config user.email "rebaseline-bot[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add -A
+          git commit -m "chore: rebaseline aaron-marketing $BASE -> $UP"
+          git push -u origin "$BRANCH"
+          BODY=$(mktemp)
+          if [ -f /tmp/rebaseline-summary.md ]; then
+            cp /tmp/rebaseline-summary.md "$BODY"
+          else
+            echo "Rebaseline aaron-marketing $BASE → $UP (agent produced no summary — review the diff)." > "$BODY"
+          fi
+          {
+            echo ""
+            echo "---"
+            echo "- [ ] Playbook diff reviewed (call-point contracts re-verified against v$UP)"
+            echo "- [ ] Optimize self-test on this branch is green (dispatched automatically — check the Actions tab)"
+            echo ""
+            echo "Merging this PR upgrades the actions' default \`aaron_version\` pin and re-signs the playbook's *Tested against* line."
+          } >> "$BODY"
+          gh pr create \
+            --title "chore: rebaseline aaron-marketing $BASE → $UP" \
+            --head "$BRANCH" \
+            --body-file "$BODY"
+
+      - name: Dispatch the optimize self-test on the PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.detect.outputs.branch }}
+        run: |
+          gh workflow run test-action.yml --ref "$BRANCH" \
+            -f suite=optimize -f model=claude-sonnet-5 \
+            || echo "::warning::could not dispatch self-test — run it manually on $BRANCH"
