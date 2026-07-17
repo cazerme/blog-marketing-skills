@@ -52,6 +52,12 @@ jobs:
           echo "changed: ${{ steps.opt.outputs.changed }}"
           test "${{ steps.opt.outputs.changed }}" = "true" || { echo "::error::optimizer reported no changes on a fixture with planted issues"; exit 1; }
           grep -q 'description:' posts/desert-hikes.md || { echo "::error::front-matter description was not added"; exit 1; }
+          # The action pins aaron-marketing to the playbook baseline, so the
+          # skill's Step 0 drift check must stay quiet; a warning here means
+          # the pin and the playbook disagree.
+          if grep -rqi "version drift" posts/.seo-optimizer/reports/ 2>/dev/null; then
+            echo "::error::report contains a version-drift warning — aaron_version pin and playbook baseline disagree"; exit 1
+          fi
           echo "✅ optimizer self-test passed"
 
   generate-against-fixture:

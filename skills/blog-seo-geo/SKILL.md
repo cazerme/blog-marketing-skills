@@ -1,7 +1,7 @@
 ---
 name: blog-seo-geo
-description: 'Optimize a local blog post file (HTML or Markdown) for SEO and GEO (AI-citation readiness): parse into blocks, audit with aaron-marketing:on-page-seo-auditor, rewrite blocks with aaron-marketing:content-writer, make content citation-ready with aaron-marketing:geo-content-optimizer, build head markup with aaron-marketing:serp-markup-builder, write the file back safely (backup + fail-closed integrity checks), and emit a change report. Handles full HTML documents, body fragments, and Markdown posts with YAML front matter (Jekyll/Hugo/GitHub Pages style); code fences and embedded HTML in markdown are never touched. Use when the user asks to optimize a blog post, improve a post''s SEO, or make a post more citable by AI engines. Input is a path to an .html or .md file whose article content is in the file. Not for live URLs, SPA/build-artifact HTML, or site-level technical SEO.'
-version: "0.4.0"
+description: 'Optimize a local blog post file (HTML or Markdown) for SEO and GEO (AI-citation readiness): parse into blocks, audit with aaron-marketing:on-page-seo-checker, rewrite blocks with aaron-marketing:content-writer, make content citation-ready with aaron-marketing:geo-content-optimizer, build head markup with aaron-marketing:serp-markup-builder, write the file back safely (backup + fail-closed integrity checks), and emit a change report. Handles full HTML documents, body fragments, and Markdown posts with YAML front matter (Jekyll/Hugo/GitHub Pages style); code fences and embedded HTML in markdown are never touched. Use when the user asks to optimize a blog post, improve a post''s SEO, or make a post more citable by AI engines. Input is a path to an .html or .md file whose article content is in the file. Not for live URLs, SPA/build-artifact HTML, or site-level technical SEO.'
+version: "0.5.0"
 license: MIT
 argument-hint: "<path/to/post.html|.md> [target keyword]"
 allowed-tools: Read, Write, Bash, Skill
@@ -32,7 +32,8 @@ All paths below use `$SKILL` for this skill's directory: set `SKILL="${CLAUDE_PL
   /plugin marketplace add aaron-he-zhu/aaron-marketing-skills
   /plugin install aaron-marketing@aaron
   ```
-- Best-effort version check: `claude plugin list 2>/dev/null` — if the installed aaron-marketing **major** version differs from the one the playbook was tested against (see `references/pipeline-playbook.md`), continue but add a one-line warning to the report and summary (call-point contracts may have drifted). Skip silently if the CLI is unavailable.
+- Best-effort version check: `claude plugin list 2>/dev/null` — if the installed aaron-marketing **major** version differs from the one the playbook was tested against (see `references/pipeline-playbook.md`), continue but add a warning to the report and summary. The warning line must start with the exact prefix `⚠️ Version drift:` (the self-test greps for it), followed by both versions and any call-point substitutions made. Skip silently if the CLI is unavailable.
+- Call-point availability: confirm each of the four `aaron-marketing:*` sub-skills named in the playbook is actually available. If one is missing, check the playbook's **Known renames** table and use the renamed skill (note the substitution in the report). If it is missing under both names, apply the playbook's per-call-point fallback policy — degrade for call points 1/3/4, abort fail-closed for call point 2. Never substitute a merely similar-sounding skill beyond the renames table.
 
 ## Step 1 — Extract (read-only)
 
@@ -54,7 +55,7 @@ If the user supplied one, use it. Otherwise derive a primary keyword from the ti
 
 ## Step 3 — SEO audit (call point 1)
 
-Invoke `aaron-marketing:on-page-seo-auditor` with the file path, the keyword, and a note that it is a local file audit (fragment note if applicable: title/meta live in a template). Merge its prioritized findings with the mechanical failures into one deduplicated issue list — this is **M** (total issues found). Keep the list; the report needs it.
+Invoke `aaron-marketing:on-page-seo-checker` with the file path, the keyword, and a note that it is a local file audit (fragment note if applicable: title/meta live in a template). Merge its prioritized findings with the mechanical failures into one deduplicated issue list — this is **M** (total issues found). Keep the list; the report needs it.
 
 ## Step 4 — SEO rewrite (call point 2)
 
@@ -75,9 +76,11 @@ Invoke `aaron-marketing:geo-content-optimizer` targeting **Gemini-style AI citat
 
 Red line reminder: every rewrite/insertion must only restate facts already in the post. If Step 4 and Step 5 both touch the same block, merge them into one edit yourself — one edit per block.
 
+If the sub-skill answers `DONE_WITH_CONCERNS` over missing entity profiles (`memory/entities/…`) or recommends running `entity-registry`: that is non-blocking here — keep the block rewrites/insertions it produced, put the concern under the report's "Remaining suggestions", and do not run `entity-registry`.
+
 ## Step 6 — Head & markup (call point 4)
 
-Invoke `aaron-marketing:serp-markup-builder` with the (post-rewrite) content and keyword to produce: title tag, meta description, OG/Twitter tags, and JSON-LD (Article/BlogPosting; FAQPage only if Step 5 added a real FAQ).
+Invoke `aaron-marketing:serp-markup-builder` with the (post-rewrite) content and keyword, explicitly requesting **both** of its modes — `meta` (title tag, meta description, OG/Twitter tags) and `schema` (JSON-LD: Article/BlogPosting; FAQPage only if Step 5 added a real FAQ). Asking for only one mode loses half the expected output.
 
 - `doc_kind == "document"`: put **title + meta description** into `meta_edits` (the engine can write those); OG/Twitter/JSON-LD go to the report's Template suggestions (the engine does not inject head markup blocks).
 - `doc_kind == "markdown"` with front matter: put **title + description** into `meta_edits` (the engine writes them into the front matter, adding missing keys); OG/Twitter/JSON-LD → Template suggestions ("your SSG theme/config handles these").

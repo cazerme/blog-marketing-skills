@@ -69,7 +69,7 @@ The SEO/GEO optimizer ships as a sub-action in this same repo (GitHub Marketplac
           # keyword: "target keyword"    # optional; derived if omitted
 ```
 
-It runs the `blog-seo-geo` skill (installing its aaron-marketing dependency on the runner), commits **only the post file** (backups/reports stay on the runner — the report becomes the PR body), and is idempotent: an already-optimized post yields `changed: false` and no PR.
+It runs the `blog-seo-geo` skill (installing its aaron-marketing dependency on the runner, pinned to the version the skill's playbook was tested against — override with the `aaron_version` input, or set it to `""` for latest), commits **only the post file** (backups/reports stay on the runner — the report becomes the PR body), and is idempotent: an already-optimized post yields `changed: false` and no PR.
 
 ### The full loop: generate → optimize → one review
 
@@ -108,7 +108,7 @@ Or chain the two actions yourself for finer control:
 ```
 
 1. Parses your post into content blocks and runs deterministic mechanical checks (title/meta, heading structure, alt text, links…) → baseline score
-2. Diagnoses it with `aaron-marketing:on-page-seo-auditor`
+2. Diagnoses it with `aaron-marketing:on-page-seo-checker`
 3. Rewrites content blocks with `aaron-marketing:content-writer` (refresh mode) — facts, links and images are preserved; nothing is invented
 4. Runs a **GEO pass** with `aaron-marketing:geo-content-optimizer`: makes key passages quotable by AI engines (Gemini-style citation) and adds answer/FAQ blocks where warranted — restating only what the post already says
 5. Builds head markup with `aaron-marketing:serp-markup-builder`: title + meta description are applied to full HTML documents and to markdown front matter; OG/Twitter/JSON-LD land in the report as paste-ready template suggestions
@@ -185,4 +185,4 @@ claude plugin validate .              # manifest check
 
 ## License
 
-MIT. Tested against aaron-marketing 16.1.0.
+MIT. Tested against aaron-marketing 18.0.0 (the actions install that exact upstream version by default — override with the `aaron_version` input).
