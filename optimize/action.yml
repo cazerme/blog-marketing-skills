@@ -62,7 +62,7 @@ inputs:
   aaron_version:
     description: "aaron-marketing version to install (git tag v<version> of aaron_ref). Defaults to the playbook-tested baseline; set '' to install latest (unpinned)."
     required: false
-    default: "18.0.0"
+    default: "19.0.0"
 
 outputs:
   changed:
