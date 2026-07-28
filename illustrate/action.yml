@@ -1,0 +1,285 @@
+name: "AI Blog Illustrator"
+description: >-
+  Illustrates one existing blog post (HTML or Markdown) and opens the result as
+  a pull request. Runs Waybox's blog-smart-images skill: plan image slots from
+  the post structure, source candidates from licensed inputs only, score them
+  with an ArtiMuse-style 8-dimension rubric plus a style-fit gate, export
+  web-ready webp/jpg/OG files, and insert hero + section figures via insert-only
+  safe writes. Never edits prose.
+author: cazerme
+branding:
+  icon: image
+  color: orange
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key (or use claude_code_oauth_token instead)"
+    required: false
+    default: ""
+  claude_code_oauth_token:
+    description: "Claude Code OAuth token from `claude setup-token` — bills your Claude subscription instead of API credits. Takes precedence when both are set."
+    required: false
+    default: ""
+  post_file:
+    description: "Path (relative to working_directory) of the post to illustrate"
+    required: true
+  images_dir:
+    description: "Where exported images land, relative to working_directory. Empty lets the skill default to images/<post-slug>/ next to the post — point this at your static assets dir (e.g. static/images) if your site serves from one."
+    required: false
+    default: ""
+  max_figures:
+    description: "Cap on inline figures besides hero/OG"
+    required: false
+    default: "4"
+  image_style:
+    description: "Style preset id (livelike-warm, natgeo-doc, vanlife-film, kinfolk-minimal, parks-golden-west, ig-editorial). Empty uses the post's own image_style front matter, else the skill default."
+    required: false
+    default: ""
+  pexels_api_key:
+    description: "Pexels key — the primary stock photo source (free, ~200/hour). Without any stock key the skill has no photo source and will leave photo slots empty rather than fill the post with text cards."
+    required: false
+    default: ""
+  unsplash_access_key:
+    description: "Unsplash key — backup stock source, used when Pexels hits its cap. Its images carry a mandatory photographer credit, which the skill adds to the caption automatically."
+    required: false
+    default: ""
+  stock_provider_order:
+    description: "Comma-separated stock provider order, e.g. 'unsplash,pexels'. Empty keeps the skill's default (pexels,unsplash)."
+    required: false
+    default: ""
+  pexels_hourly_cap:
+    description: "Requests/hour before failing over to the next provider. Empty keeps the skill's default (190, a margin under Pexels' free 200)."
+    required: false
+    default: ""
+  unsplash_hourly_cap:
+    description: "Requests/hour before failing over. Empty keeps the skill's default (45, a margin under Unsplash's demo 50)."
+    required: false
+    default: ""
+  imagegen_provider:
+    description: "Image-generation provider id (optional path for scenes stock cannot supply; billed per image)"
+    required: false
+    default: ""
+  imagegen_api_key:
+    description: "Image-generation API key"
+    required: false
+    default: ""
+  install_card_renderer:
+    description: "Install Playwright + Chromium so the brand card renderer can run (~300 MB, adds minutes). Only needed for designed cards; photo heroes and photo-derived OG crops work without it."
+    required: false
+    default: "false"
+  github_token:
+    description: "Token used to push the branch and open the PR"
+    required: false
+    default: ${{ github.token }}
+  model:
+    description: "Optional model override passed to Claude Code"
+    required: false
+    default: ""
+  create_pr:
+    description: "Open a pull request with the result"
+    required: false
+    default: "true"
+  base_branch:
+    description: "Base branch for the PR"
+    required: false
+    default: ${{ github.event.repository.default_branch }}
+  working_directory:
+    description: "Directory of the blog (for monorepos)"
+    required: false
+    default: "."
+  push_branch:
+    description: "Push the result branch to origin (set 'false' for self-tests)"
+    required: false
+    default: "true"
+  image_skill_repo:
+    description: "Source repository for the blog-smart-images skill"
+    required: false
+    default: "Zora-waybox/blog-image-skill"
+  image_skill_ref:
+    description: "Git ref of image_skill_repo to install. Defaults to main because HTML support is not in a release yet — v0.1.1 and earlier are Markdown-only. Pin this to a tag once one ships with HTML support."
+    required: false
+    default: "main"
+
+outputs:
+  changed:
+    description: "'true' if the post gained images; 'false' if nothing was inserted"
+    value: ${{ steps.collect.outputs.changed }}
+  branch:
+    description: "Branch containing the illustrated post (empty when unchanged)"
+    value: ${{ steps.collect.outputs.branch }}
+  pr_url:
+    description: "URL of the opened pull request (empty when unchanged or create_pr is false)"
+    value: ${{ steps.pr.outputs.pr_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Claude Code CLI
+      shell: bash
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        claude --version
+
+    - name: Install the blog-smart-images skill
+      shell: bash
+      env:
+        SKILL_REPO: ${{ inputs.image_skill_repo }}
+        SKILL_REF: ${{ inputs.image_skill_ref }}
+      run: |
+        # Installed as a user-scoped skill rather than a plugin marketplace:
+        # upstream ships no .claude-plugin/marketplace.json, and a user-scoped
+        # copy keeps the blog repo's working tree clean — a .claude/ directory
+        # inside it would land in the commit below.
+        case "$SKILL_REPO" in
+          *://*) SKILL_URL="$SKILL_REPO" ;;
+          *)     SKILL_URL="https://github.com/$SKILL_REPO" ;;
+        esac
+        git clone --quiet --depth 1 --branch "$SKILL_REF" "$SKILL_URL" "$RUNNER_TEMP/blog-image-skill"
+        mkdir -p "$HOME/.claude/skills"
+        rm -rf "$HOME/.claude/skills/blog-smart-images"
+        cp -r "$RUNNER_TEMP/blog-image-skill/skills/blog-smart-images" "$HOME/.claude/skills/"
+        echo "installed blog-smart-images from $SKILL_REPO@$SKILL_REF"
+
+    - name: Install script dependencies
+      shell: bash
+      run: |
+        python3 -m pip install --quiet --upgrade pillow
+        if [ "${{ inputs.install_card_renderer }}" = "true" ]; then
+          python3 -m pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium
+        fi
+
+    - name: Preflight — the installed skill must understand this post's format
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        SKILL="$HOME/.claude/skills/blog-smart-images"
+        POST="${{ inputs.post_file }}"
+        test -f "$POST" || { echo "::error::post not found: $POST"; exit 1; }
+        case "$POST" in
+          *.html|*.htm)
+            if [ ! -f "$SKILL/scripts/htmlpost.py" ]; then
+              echo "::error::${{ inputs.post_file }} is HTML, but the installed blog-smart-images has no HTML support (scripts/htmlpost.py is missing). v0.1.1 and earlier are Markdown-only — set image_skill_ref to a ref that includes it (main, currently)."
+              exit 1
+            fi
+            ;;
+        esac
+        python3 "$SKILL/scripts/extract_slots.py" "$POST" --check
+
+    - name: Illustrate the post (blog-smart-images skill)
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        IN_API_KEY: ${{ inputs.anthropic_api_key }}
+        IN_OAUTH: ${{ inputs.claude_code_oauth_token }}
+        PEXELS_API_KEY: ${{ inputs.pexels_api_key }}
+        UNSPLASH_ACCESS_KEY: ${{ inputs.unsplash_access_key }}
+        IMAGEGEN_PROVIDER: ${{ inputs.imagegen_provider }}
+        IMAGEGEN_API_KEY: ${{ inputs.imagegen_api_key }}
+      run: |
+        if [ -n "$IN_OAUTH" ]; then
+          export CLAUDE_CODE_OAUTH_TOKEN="$IN_OAUTH"
+        elif [ -n "$IN_API_KEY" ]; then
+          export ANTHROPIC_API_KEY="$IN_API_KEY"
+        else
+          echo "::error::Provide anthropic_api_key or claude_code_oauth_token"; exit 1
+        fi
+        if [ -z "$PEXELS_API_KEY" ] && [ -z "$UNSPLASH_ACCESS_KEY" ] && [ -z "$IMAGEGEN_API_KEY" ]; then
+          echo "::warning::No stock or image-gen key set. The skill refuses to pad a post with text cards, so photo slots will be left empty and the run may insert nothing."
+        fi
+        # Only export these when set. fetch_stock.py reads the caps with
+        # int(os.environ.get(NAME, default)), so an exported empty string is a
+        # ValueError on every run rather than a fallback to the default.
+        if [ -n "${{ inputs.stock_provider_order }}" ]; then
+          export STOCK_PROVIDER_ORDER="${{ inputs.stock_provider_order }}"
+        fi
+        if [ -n "${{ inputs.pexels_hourly_cap }}" ]; then
+          export PEXELS_HOURLY_CAP="${{ inputs.pexels_hourly_cap }}"
+        fi
+        if [ -n "${{ inputs.unsplash_hourly_cap }}" ]; then
+          export UNSPLASH_HOURLY_CAP="${{ inputs.unsplash_hourly_cap }}"
+        fi
+        MODEL_ARG=""
+        if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
+        ARGS="${{ inputs.post_file }}"
+        if [ -n "${{ inputs.images_dir }}" ]; then ARGS="$ARGS --images-dir ${{ inputs.images_dir }}"; fi
+        if [ -n "${{ inputs.max_figures }}" ]; then ARGS="$ARGS --max-figures ${{ inputs.max_figures }}"; fi
+        STYLE_LINE=""
+        if [ -n "${{ inputs.image_style }}" ]; then
+          STYLE_LINE="Use the '${{ inputs.image_style }}' style preset."
+        fi
+        claude -p "Run the blog-smart-images skill on ${ARGS}. ${STYLE_LINE} Follow its SKILL.md exactly, including the licensing rules, the scoring gates, and the insert-only write path. Do not commit — git is handled outside." \
+          $MODEL_ARG \
+          --allowedTools "Skill,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
+          --max-turns 100
+
+    - name: Harvest the image report, drop runner-only artifacts
+      id: report
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        BODY="$RUNNER_TEMP/illustrate-body.md"
+        REPORT=$(ls "${{ inputs.post_file }}".image-report.md 2>/dev/null | head -1 || true)
+        if [ -n "$REPORT" ] && [ -f "$REPORT" ]; then
+          cp "$REPORT" "$BODY"
+        else
+          echo "Illustrated \`${{ inputs.post_file }}\` — see the action run log for the per-slot scores and licences." > "$BODY"
+        fi
+        {
+          echo ""
+          echo "---"
+          echo "Opened by the AI Blog Illustrator action. Prose is untouched by construction —"
+          echo "the skill only inserts. Check the licence column before merging."
+        } >> "$BODY"
+        # Everything below is a runner-only artifact of the run, never a deliverable.
+        rm -f "${{ inputs.post_file }}".image-report.md
+        rm -f "${{ inputs.post_file }}".bak
+        find . -name '*.preview.html' -delete
+        find . -maxdepth 2 \( -name 'image-plan.json' -o -name 'insert-plan.json' \) -delete
+        rm -rf candidates raw
+        echo "body=${BODY}" >> "$GITHUB_OUTPUT"
+
+    - name: Collect results
+      id: collect
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        if git status --porcelain | grep -q .; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=blog/illustrate-$(date -u +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          echo "branch=" >> "$GITHUB_OUTPUT"
+          echo "::notice::Nothing was inserted. Either every candidate failed the composite>=70 / style-fit>=7 gates, or no photo source was configured."
+        fi
+
+    - name: Commit the illustrated post
+      if: ${{ steps.collect.outputs.changed == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        git config user.name "blog-marketing-action[bot]"
+        git config user.email "blog-marketing-action[bot]@users.noreply.github.com"
+        git switch -c "${{ steps.collect.outputs.branch }}"
+        git add -A
+        git commit -m "blog: illustrate ${{ inputs.post_file }}"
+        if [ "${{ inputs.push_branch }}" = "true" ]; then
+          git push -u origin "${{ steps.collect.outputs.branch }}"
+        else
+          echo "push_branch=false — commit left local (self-test mode)"
+        fi
+
+    - name: Open the pull request
+      id: pr
+      if: ${{ steps.collect.outputs.changed == 'true' && inputs.create_pr == 'true' && inputs.push_branch == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        PR_URL=$(gh pr create \
+          --base "${{ inputs.base_branch }}" \
+          --head "${{ steps.collect.outputs.branch }}" \
+          --title "blog: images — ${{ inputs.post_file }}" \
+          --body-file "${{ steps.report.outputs.body }}")
+        echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"

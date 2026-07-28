@@ -58,6 +58,54 @@ inputs:
     description: "aaron-marketing version to install (git tag v<version> of aaron_ref). Defaults to the playbook-tested baseline; set '' to install latest (unpinned)."
     required: false
     default: "19.0.0"
+  illustrate:
+    description: "Add images after the SEO/GEO pass (Waybox's blog-smart-images skill), so the single PR carries a post that is written, optimized and illustrated. Off by default: it needs a stock photo key and spends extra tokens on visual scoring."
+    required: false
+    default: "false"
+  images_dir:
+    description: "Where exported images land, relative to working_directory. Empty lets the skill default to images/<post-slug>/ next to the post."
+    required: false
+    default: ""
+  max_figures:
+    description: "Cap on inline figures besides hero/OG (illustrate only)"
+    required: false
+    default: "4"
+  image_style:
+    description: "Style preset id for the image pass (livelike-warm, natgeo-doc, vanlife-film, kinfolk-minimal, parks-golden-west, ig-editorial)"
+    required: false
+    default: ""
+  pexels_api_key:
+    description: "Pexels key — the primary stock photo source for the image pass. Without any stock key the skill leaves photo slots empty rather than padding the post with text cards."
+    required: false
+    default: ""
+  unsplash_access_key:
+    description: "Unsplash key — backup stock source for the image pass"
+    required: false
+    default: ""
+  stock_provider_order:
+    description: "Comma-separated stock provider order, e.g. 'unsplash,pexels'. Empty keeps the skill's default (pexels,unsplash)."
+    required: false
+    default: ""
+  pexels_hourly_cap:
+    description: "Requests/hour before failing over to the next provider. Empty keeps the skill's default (190)."
+    required: false
+    default: ""
+  unsplash_hourly_cap:
+    description: "Requests/hour before failing over. Empty keeps the skill's default (45)."
+    required: false
+    default: ""
+  install_card_renderer:
+    description: "Install Playwright + Chromium for the brand card renderer (~300 MB). Photo heroes and photo-derived OG crops do not need it."
+    required: false
+    default: "false"
+  image_skill_repo:
+    description: "Source repository for the blog-smart-images skill"
+    required: false
+    default: "Zora-waybox/blog-image-skill"
+  image_skill_ref:
+    description: "Git ref of image_skill_repo to install. Defaults to main because HTML support is not in a release yet — v0.1.1 and earlier are Markdown-only."
+    required: false
+    default: "main"
 
 outputs:
   post_file:
@@ -157,6 +205,86 @@ runs:
           --allowedTools "Skill,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
           --max-turns 100
 
+    - name: Install the image skill and its dependencies
+      if: ${{ inputs.illustrate == 'true' }}
+      shell: bash
+      env:
+        SKILL_REPO: ${{ inputs.image_skill_repo }}
+        SKILL_REF: ${{ inputs.image_skill_ref }}
+      run: |
+        # User-scoped, not a plugin marketplace: upstream ships no
+        # .claude-plugin/marketplace.json, and a .claude/ directory inside the
+        # blog repo would be swept into the `git add -A` commit below.
+        case "$SKILL_REPO" in
+          *://*) SKILL_URL="$SKILL_REPO" ;;
+          *)     SKILL_URL="https://github.com/$SKILL_REPO" ;;
+        esac
+        git clone --quiet --depth 1 --branch "$SKILL_REF" "$SKILL_URL" "$RUNNER_TEMP/blog-image-skill"
+        mkdir -p "$HOME/.claude/skills"
+        rm -rf "$HOME/.claude/skills/blog-smart-images"
+        cp -r "$RUNNER_TEMP/blog-image-skill/skills/blog-smart-images" "$HOME/.claude/skills/"
+        python3 -m pip install --quiet --upgrade pillow
+        if [ "${{ inputs.install_card_renderer }}" = "true" ]; then
+          python3 -m pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium
+        fi
+        # The generated post is HTML or Markdown depending on the blog; fail
+        # fast rather than let a Markdown-only build silently insert nothing.
+        case "${{ steps.collect.outputs.post_file }}" in
+          *.html|*.htm)
+            if [ ! -f "$HOME/.claude/skills/blog-smart-images/scripts/htmlpost.py" ]; then
+              echo "::error::The generated post is HTML, but the installed blog-smart-images has no HTML support. v0.1.1 and earlier are Markdown-only — set image_skill_ref to a ref that includes it (main, currently)."
+              exit 1
+            fi
+            ;;
+        esac
+
+    - name: Illustrate the post (blog-smart-images skill)
+      if: ${{ inputs.illustrate == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        IN_API_KEY: ${{ inputs.anthropic_api_key }}
+        IN_OAUTH: ${{ inputs.claude_code_oauth_token }}
+        PEXELS_API_KEY: ${{ inputs.pexels_api_key }}
+        UNSPLASH_ACCESS_KEY: ${{ inputs.unsplash_access_key }}
+      run: |
+        if [ -n "$IN_OAUTH" ]; then
+          export CLAUDE_CODE_OAUTH_TOKEN="$IN_OAUTH"
+        elif [ -n "$IN_API_KEY" ]; then
+          export ANTHROPIC_API_KEY="$IN_API_KEY"
+        else
+          echo "::error::Provide anthropic_api_key or claude_code_oauth_token"; exit 1
+        fi
+        if [ -z "$PEXELS_API_KEY" ] && [ -z "$UNSPLASH_ACCESS_KEY" ]; then
+          echo "::warning::No stock photo key set. The skill refuses to pad a post with text cards, so photo slots will be left empty and this pass may insert nothing."
+        fi
+        # Only export these when set. fetch_stock.py reads the caps with
+        # int(os.environ.get(NAME, default)), so an exported empty string is a
+        # ValueError on every run rather than a fallback to the default.
+        if [ -n "${{ inputs.stock_provider_order }}" ]; then
+          export STOCK_PROVIDER_ORDER="${{ inputs.stock_provider_order }}"
+        fi
+        if [ -n "${{ inputs.pexels_hourly_cap }}" ]; then
+          export PEXELS_HOURLY_CAP="${{ inputs.pexels_hourly_cap }}"
+        fi
+        if [ -n "${{ inputs.unsplash_hourly_cap }}" ]; then
+          export UNSPLASH_HOURLY_CAP="${{ inputs.unsplash_hourly_cap }}"
+        fi
+        MODEL_ARG=""
+        if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
+        ARGS="${{ steps.collect.outputs.post_file }}"
+        if [ -n "${{ inputs.images_dir }}" ]; then ARGS="$ARGS --images-dir ${{ inputs.images_dir }}"; fi
+        if [ -n "${{ inputs.max_figures }}" ]; then ARGS="$ARGS --max-figures ${{ inputs.max_figures }}"; fi
+        STYLE_LINE=""
+        if [ -n "${{ inputs.image_style }}" ]; then
+          STYLE_LINE="Use the '${{ inputs.image_style }}' style preset."
+        fi
+        claude -p "Run the blog-smart-images skill on ${ARGS}. ${STYLE_LINE} Follow its SKILL.md exactly, including the licensing rules, the scoring gates, and the insert-only write path. Do not commit — git is handled outside." \
+          $MODEL_ARG \
+          --allowedTools "Skill,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
+          --max-turns 100
+
     - name: Harvest the report, drop runner-only artifacts
       id: report
       shell: bash
@@ -169,14 +297,29 @@ runs:
         else
           echo "Generated and optimized by the AI Blog Pipeline — see the action run log for both reports." > "$BODY"
         fi
+        IMG_REPORT="${{ steps.collect.outputs.post_file }}.image-report.md"
+        if [ -f "$IMG_REPORT" ]; then
+          { echo ""; echo "---"; echo ""; cat "$IMG_REPORT"; } >> "$BODY"
+        fi
         {
           echo ""
           echo "---"
-          echo "One post, born optimized: generated by roadtrip-blogger, then passed through blog-seo-geo."
+          if [ "${{ inputs.illustrate }}" = "true" ]; then
+            echo "One post, born optimized and illustrated: generated by roadtrip-blogger, passed through"
+            echo "blog-seo-geo, then illustrated by blog-smart-images. Prose is untouched by the image pass"
+            echo "by construction — it only inserts. Check the licence column before merging."
+          else
+            echo "One post, born optimized: generated by roadtrip-blogger, then passed through blog-seo-geo."
+          fi
           echo "Review the perishable-claims table in the generation report (action run log) before merging."
         } >> "$BODY"
-        # backups/reports are runner-only artifacts — never ship them in the PR
+        # backups/reports are runner-only artifacts — never ship them in the PR.
+        # The exported images are deliverables and are deliberately kept.
         find . -type d -name '.seo-optimizer' -exec rm -rf {} +
+        rm -f "$IMG_REPORT" "${{ steps.collect.outputs.post_file }}.bak"
+        find . -name '*.preview.html' -delete
+        find . -maxdepth 2 \( -name 'image-plan.json' -o -name 'insert-plan.json' \) -delete
+        rm -rf candidates raw
         echo "body=${BODY}" >> "$GITHUB_OUTPUT"
 
     - name: Commit to a branch
