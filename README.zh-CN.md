@@ -20,7 +20,7 @@
 
 为博客文章做 **SEO**（Google 排名）和 **GEO**（被 Gemini 这类 AI 引擎引用）优化的 Claude Code 技能。构建在开源技能包 [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) 之上：本插件负责编排它的审计/写作技能，并自带一套确定性的、fail-closed 的引擎，安全地原地修改你的 HTML 或 Markdown 文件。
 
-> 三个 GitHub Action + 一个技能（`blog-seo-geo`）+ 一个 agent（`roadtrip-blogger`）。技能的能力与边界见[能力边界](#能力边界v04)。
+> 四个 GitHub Action + 一个技能（`blog-seo-geo`）+ 一个 agent（`roadtrip-blogger`），另有可选的配图环节（接 [blog-smart-images](https://github.com/Zora-waybox/blog-image-skill)）。技能的能力与边界见[能力边界](#能力边界v04)。
 
 ## 工作流
 
@@ -43,26 +43,38 @@ flowchart LR
     end
 
     C{fail-closed<br/>完整性校验}
-    PR[Pull Request<br/>正文就是变更报告]
+
+    subgraph IMG["blog-smart-images——可选"]
+        direction TB
+        I1[规划图位] --> I2[取素材<br/>仅限有授权来源]
+        I2 --> I3[8 维美学评分<br/>+ 风格契合门槛]
+        I3 --> I4[仅插入式<br/>写入配图]
+    end
+
+    PR[Pull Request<br/>正文就是各项报告]
     N[什么都不写]
     M([你来审阅<br/>并合并])
 
     S --> G
     G3 --> P
     A4 --> C
-    C -->|通过| PR
     C -->|拒绝| N
+    C -->|通过| I1
+    I4 --> PR
+    C -.->|illustrate: false| PR
     PR --> M
 
     classDef aaron fill:#fef7e0,stroke:#f9ab00,color:#3c4043
+    classDef img fill:#e8f0fe,stroke:#1a73e8,color:#3c4043
     classDef stop fill:#fce8e6,stroke:#d93025,color:#3c4043
     classDef done fill:#e6f4ea,stroke:#1e8e3e,color:#3c4043
     class A1,A2,A3,A4 aaron
+    class I1,I2,I3,I4 img
     class N stop
     class PR,M done
 ```
 
-四个琥珀色步骤是 [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) 的子技能——负责编辑判断；其余都是本插件的确定性引擎。**任何情况下都不会直推你的默认分支。**
+四个琥珀色步骤是 [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) 的子技能——负责编辑判断；蓝色的是 [blog-smart-images](https://github.com/Zora-waybox/blog-image-skill)，不设 `illustrate: "true"` 就不启用；其余都是本插件的确定性引擎。**任何情况下都不会直推你的默认分支。**
 
 ## roadtrip-blogger agent
 
@@ -129,16 +141,38 @@ SEO/GEO 优化器以**子 action** 形式住在同一仓库（GA Marketplace 一
 
 它运行 `blog-seo-geo` 技能（会在 runner 上装好 aaron-marketing 依赖，且锁定在 playbook 验证过的版本——可用 `aaron_version` 输入覆盖，设为 `""` 则装最新版），**只把文章文件本身提交进 PR**（备份和报告留在 runner 上——报告内容直接变成 PR 正文），并且幂等：已优化过的文章会得到 `changed: false`、不开 PR。
 
-### 完整闭环：生成 → 优化 → 一次人审
+### 配图 action（`/illustrate`）
 
-最省事的形态——**pipeline 子 action** 一步做完两件事，开一个 PR、正文就是优化报告：
+给纯文字文章配图，背后是 [Waybox 的 `blog-smart-images`](https://github.com/Zora-waybox/blog-image-skill) 技能：按文章结构规划图位，**仅从有授权的来源**取素材，用 8 维美学评分 + 风格契合门槛逐张打分，然后插入头图和章节配图。它**从不改动正文**——所有写入都是仅插入式、带 `.bak`、失败即停，这正是它能安全地跑在 `blog-seo-geo` 之后的原因。
+
+```yaml
+      - uses: cazerme/blog-marketing-skills/illustrate@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          post_file: posts/my-post.md
+          pexels_api_key: ${{ secrets.PEXELS_API_KEY }}   # 图片来源
+          # images_dir: static/images                      # 可选；默认放在文章旁边
+          # image_style: parks-golden-west                 # 可选风格预设
+```
+
+**图库 key 基本是必需的。** 一个都不配的话，技能就没有照片源，而它宁可留空也不用文字卡凑数——结果就是图位全空、可能一张都插不进去。[Pexels](https://www.pexels.com/api/) 免费（约 200 次/小时），是首选来源；`unsplash_access_key` 是可选备份，它的图片带强制署名要求，技能会自动加进图注。
+
+HTML 和 Markdown 文章都支持，包括正文片段。注意 HTML 支持目前还没进上游发布版，所以 `image_skill_ref` 默认指向 `main`；`v0.1.1` 及更早只支持 Markdown——真要往回锁版本，action 会**明确报错**而不是默默地一张图都不插。
+
+### 完整闭环：生成 → 优化 → 配图 → 一次人审
+
+最省事的形态——**pipeline 子 action** 一步做完全部，开一个 PR、正文就是优化报告（开了配图的话还会附上配图报告）：
 
 ```yaml
       - uses: actions/checkout@v4
       - uses: cazerme/blog-marketing-skills/pipeline@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          illustrate: "true"                              # 默认关闭
+          pexels_api_key: ${{ secrets.PEXELS_API_KEY }}
 ```
+
+`illustrate` 默认关闭，因为它需要图库 key、而且视觉评分要额外烧 token。不开的话 pipeline 行为和以前完全一致，连配图相关的安装步骤都会整个跳过。
 
 想精细控制的也可以自己把两个 action 链起来（配方见英文版 README）。
 

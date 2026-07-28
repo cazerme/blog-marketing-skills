@@ -20,7 +20,7 @@ English · [简体中文](README.zh-CN.md)
 
 Claude Code skills that optimize blog posts for **SEO** (Google rankings) and **GEO** (getting cited by AI engines like Gemini). Built on top of the open-source [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) skill pack: this plugin orchestrates its auditing/writing skills and adds a deterministic, fail-closed engine for safely editing your HTML or Markdown files in place.
 
-> Three GitHub Actions + one skill (`blog-seo-geo`) + one agent (`roadtrip-blogger`). See [Scope](#scope-v04) for exactly what the skill does and refuses to do.
+> Four GitHub Actions + one skill (`blog-seo-geo`) + one agent (`roadtrip-blogger`), plus an optional image pass via [blog-smart-images](https://github.com/Zora-waybox/blog-image-skill). See [Scope](#scope-v04) for exactly what the skill does and refuses to do.
 
 ## How it works
 
@@ -43,26 +43,38 @@ flowchart LR
     end
 
     C{fail-closed<br/>integrity check}
-    PR[pull request<br/>report as the body]
+
+    subgraph IMG["blog-smart-images — optional"]
+        direction TB
+        I1[plan slots] --> I2[source<br/>licensed only]
+        I2 --> I3[score: 8-dim rubric<br/>+ style-fit gate]
+        I3 --> I4[insert-only<br/>figures]
+    end
+
+    PR[pull request<br/>reports as the body]
     N[nothing written]
     M([you review<br/>and merge])
 
     S --> G
     G3 --> P
     A4 --> C
-    C -->|pass| PR
     C -->|refuse| N
+    C -->|pass| I1
+    I4 --> PR
+    C -.->|illustrate: false| PR
     PR --> M
 
     classDef aaron fill:#fef7e0,stroke:#f9ab00,color:#3c4043
+    classDef img fill:#e8f0fe,stroke:#1a73e8,color:#3c4043
     classDef stop fill:#fce8e6,stroke:#d93025,color:#3c4043
     classDef done fill:#e6f4ea,stroke:#1e8e3e,color:#3c4043
     class A1,A2,A3,A4 aaron
+    class I1,I2,I3,I4 img
     class N stop
     class PR,M done
 ```
 
-The four amber steps are [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) sub-skills — the editorial judgment. Everything else is this plugin's deterministic engine. Nothing is ever pushed to your default branch.
+The four amber steps are [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) sub-skills — the editorial judgment. The blue ones are [blog-smart-images](https://github.com/Zora-waybox/blog-image-skill), off unless you set `illustrate: "true"`. Everything else is this plugin's deterministic engine. Nothing is ever pushed to your default branch.
 
 ## The roadtrip-blogger agent
 
@@ -129,16 +141,38 @@ The SEO/GEO optimizer ships as a sub-action in this same repo (GitHub Marketplac
 
 It runs the `blog-seo-geo` skill (installing its aaron-marketing dependency on the runner, pinned to the version the skill's playbook was tested against — override with the `aaron_version` input, or set it to `""` for latest), commits **only the post file** (backups/reports stay on the runner — the report becomes the PR body), and is idempotent: an already-optimized post yields `changed: false` and no PR.
 
-### The full loop: generate → optimize → one review
+### The illustrator action (`/illustrate`)
 
-Simplest form — the **pipeline sub-action** does both in one step and opens a single PR whose body is the optimization report:
+Text-only posts get images from [Waybox's `blog-smart-images`](https://github.com/Zora-waybox/blog-image-skill) skill — image slots planned from the post's structure, candidates sourced from **licensed inputs only**, each scored against an 8-dimension aesthetic rubric with a style-fit gate, then inserted as hero + section figures. It **never edits prose**: every write is insert-only, `.bak`-backed and fail-closed, which is what makes it safe to run after `blog-seo-geo`.
+
+```yaml
+      - uses: cazerme/blog-marketing-skills/illustrate@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          post_file: posts/my-post.md
+          pexels_api_key: ${{ secrets.PEXELS_API_KEY }}   # the photo source
+          # images_dir: static/images                      # optional; defaults next to the post
+          # image_style: parks-golden-west                 # optional preset
+```
+
+**A stock photo key is effectively required.** With none set, the skill has no photo source, and it refuses to pad a post with text cards — so it leaves slots empty and may insert nothing. [Pexels](https://www.pexels.com/api/) is free (~200/hour) and is the primary source; `unsplash_access_key` is an optional backup whose images carry a mandatory photographer credit (added to the caption automatically).
+
+Both HTML and Markdown posts work, including body fragments. Note that HTML support is not in an upstream release yet, so `image_skill_ref` defaults to `main`; `v0.1.1` and earlier are Markdown-only, and the action fails fast with an explanation rather than silently inserting nothing if you pin it back.
+
+### The full loop: generate → optimize → illustrate → one review
+
+Simplest form — the **pipeline sub-action** does it all in one step and opens a single PR whose body is the optimization report (plus the image report when the image pass runs):
 
 ```yaml
       - uses: actions/checkout@v4
       - uses: cazerme/blog-marketing-skills/pipeline@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          illustrate: "true"                              # off by default
+          pexels_api_key: ${{ secrets.PEXELS_API_KEY }}
 ```
+
+`illustrate` is off by default because it needs a photo key and spends extra tokens scoring candidates visually. Left off, the pipeline behaves exactly as before and skips the image install entirely.
 
 Or chain the two actions yourself for finer control:
 
