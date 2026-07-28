@@ -151,9 +151,12 @@ SEO/GEO 优化器以**子 action** 形式住在同一仓库（GA Marketplace 一
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           post_file: posts/my-post.md
           pexels_api_key: ${{ secrets.PEXELS_API_KEY }}   # 图片来源
-          # images_dir: static/images                      # 可选；默认放在文章旁边
+          # images_dir: static/blog/<slug>                 # 文件落在哪
+          # image_src_prefix: /static/blog/<slug>          # 引用时用什么路径
           # image_style: parks-golden-west                 # 可选风格预设
 ```
+
+**如果你的文章是模板渲染的片段，必须设 `image_src_prefix`。** 默认情况下技能用相对于文章文件的路径引用图片——对于文件和 URL 深度一致的 Markdown 博客是对的，但对于住在 `blog_posts/x.html`、却在 `/blog/x` 提供服务的片段，那就是 404。这个前缀会让所有插入的 `src` 变成根相对路径。两个输入里的 `<slug>` 字面量都会被替换成文章的 slug，所以一个 workflow 能覆盖所有文章——这在 pipeline 里尤其关键，因为文章是运行时才生成的，slug 根本没法预先写进 workflow。
 
 **图库 key 基本是必需的。** 一个都不配的话，技能就没有照片源，而它宁可留空也不用文字卡凑数——结果就是图位全空、可能一张都插不进去。[Pexels](https://www.pexels.com/api/) 免费（约 200 次/小时），是首选来源；`unsplash_access_key` 是可选备份，它的图片带强制署名要求，技能会自动加进图注。
 

@@ -151,9 +151,12 @@ Text-only posts get images from [Waybox's `blog-smart-images`](https://github.co
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           post_file: posts/my-post.md
           pexels_api_key: ${{ secrets.PEXELS_API_KEY }}   # the photo source
-          # images_dir: static/images                      # optional; defaults next to the post
+          # images_dir: static/blog/<slug>                 # where files land
+          # image_src_prefix: /static/blog/<slug>          # how they're referenced
           # image_style: parks-golden-west                 # optional preset
 ```
+
+**If your posts are template-rendered fragments, set `image_src_prefix`.** By default the skill references images relative to the post file — correct for a Markdown blog where the file and its URL sit at the same depth, and a 404 for a fragment that lives at `blog_posts/x.html` but is served at `/blog/x`. The prefix makes every inserted `src` root-relative instead. A literal `<slug>` in either input is replaced with the post's slug, so one workflow covers every post — which matters in the pipeline, where the post is generated during the run and its slug cannot be written into the workflow at all.
 
 **A stock photo key is effectively required.** With none set, the skill has no photo source, and it refuses to pad a post with text cards — so it leaves slots empty and may insert nothing. [Pexels](https://www.pexels.com/api/) is free (~200/hour) and is the primary source; `unsplash_access_key` is an optional backup whose images carry a mandatory photographer credit (added to the caption automatically).
 

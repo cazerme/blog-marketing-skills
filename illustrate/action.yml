@@ -24,7 +24,16 @@ inputs:
     description: "Path (relative to working_directory) of the post to illustrate"
     required: true
   images_dir:
-    description: "Where exported images land, relative to working_directory. Empty lets the skill default to images/<post-slug>/ next to the post — point this at your static assets dir (e.g. static/images) if your site serves from one."
+    description: "Where exported images land, relative to working_directory. A literal <slug> is replaced with the post's slug, e.g. 'static/blog/<slug>'. Empty lets the skill default to images/<post-slug>/ next to the post."
+    required: false
+    default: ""
+  image_src_prefix:
+    description: >-
+      URL prefix for the src of every inserted image, e.g. '/static/blog/<slug>'
+      (a literal <slug> is replaced with the post's slug). Set this whenever the
+      post is served at a different URL depth than the file sits at — a template
+      -rendered fragment usually is, and the skill's default post-relative paths
+      would 404 there. Empty keeps those defaults.
     required: false
     default: ""
   max_figures:
@@ -201,14 +210,24 @@ runs:
         fi
         MODEL_ARG=""
         if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
+        # <slug> lets one workflow serve every post: the slug is only known
+        # per-run, so images_dir/image_src_prefix would otherwise have to be
+        # hardcoded per post. Slugs are [a-z0-9-], so plain sed is safe here.
+        SLUG=$(basename "${{ inputs.post_file }}"); SLUG="${SLUG%.*}"
+        IMAGES_DIR=$(printf '%s' "${{ inputs.images_dir }}" | sed "s|<slug>|$SLUG|g")
+        SRC_PREFIX=$(printf '%s' "${{ inputs.image_src_prefix }}" | sed "s|<slug>|$SLUG|g")
         ARGS="${{ inputs.post_file }}"
-        if [ -n "${{ inputs.images_dir }}" ]; then ARGS="$ARGS --images-dir ${{ inputs.images_dir }}"; fi
+        if [ -n "$IMAGES_DIR" ]; then ARGS="$ARGS --images-dir $IMAGES_DIR"; fi
         if [ -n "${{ inputs.max_figures }}" ]; then ARGS="$ARGS --max-figures ${{ inputs.max_figures }}"; fi
         STYLE_LINE=""
         if [ -n "${{ inputs.image_style }}" ]; then
           STYLE_LINE="Use the '${{ inputs.image_style }}' style preset."
         fi
-        claude -p "Run the blog-smart-images skill on ${ARGS}. ${STYLE_LINE} Follow its SKILL.md exactly, including the licensing rules, the scoring gates, and the insert-only write path. Do not commit — git is handled outside." \
+        PREFIX_LINE=""
+        if [ -n "$SRC_PREFIX" ]; then
+          PREFIX_LINE="IMPORTANT — image src: reference every image you insert as ${SRC_PREFIX}/<filename>, exactly that prefix plus the exported file name. Do NOT use a path relative to the post file: this post is served at a different URL depth than the file sits at, so a post-relative src would 404 for every reader. Write the files themselves to ${IMAGES_DIR:-the default images dir} as usual."
+        fi
+        claude -p "Run the blog-smart-images skill on ${ARGS}. ${STYLE_LINE} ${PREFIX_LINE} Follow its SKILL.md exactly, including the licensing rules, the scoring gates, and the insert-only write path. Do not commit — git is handled outside." \
           $MODEL_ARG \
           --allowedTools "Skill,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
           --max-turns 100
