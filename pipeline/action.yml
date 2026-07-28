@@ -82,6 +82,18 @@ inputs:
     description: "Unsplash key — backup stock source for the image pass"
     required: false
     default: ""
+  stock_provider_order:
+    description: "Comma-separated stock provider order, e.g. 'unsplash,pexels'. Empty keeps the skill's default (pexels,unsplash)."
+    required: false
+    default: ""
+  pexels_hourly_cap:
+    description: "Requests/hour before failing over to the next provider. Empty keeps the skill's default (190)."
+    required: false
+    default: ""
+  unsplash_hourly_cap:
+    description: "Requests/hour before failing over. Empty keeps the skill's default (45)."
+    required: false
+    default: ""
   install_card_renderer:
     description: "Install Playwright + Chromium for the brand card renderer (~300 MB). Photo heroes and photo-derived OG crops do not need it."
     required: false
@@ -246,6 +258,18 @@ runs:
         fi
         if [ -z "$PEXELS_API_KEY" ] && [ -z "$UNSPLASH_ACCESS_KEY" ]; then
           echo "::warning::No stock photo key set. The skill refuses to pad a post with text cards, so photo slots will be left empty and this pass may insert nothing."
+        fi
+        # Only export these when set. fetch_stock.py reads the caps with
+        # int(os.environ.get(NAME, default)), so an exported empty string is a
+        # ValueError on every run rather than a fallback to the default.
+        if [ -n "${{ inputs.stock_provider_order }}" ]; then
+          export STOCK_PROVIDER_ORDER="${{ inputs.stock_provider_order }}"
+        fi
+        if [ -n "${{ inputs.pexels_hourly_cap }}" ]; then
+          export PEXELS_HOURLY_CAP="${{ inputs.pexels_hourly_cap }}"
+        fi
+        if [ -n "${{ inputs.unsplash_hourly_cap }}" ]; then
+          export UNSPLASH_HOURLY_CAP="${{ inputs.unsplash_hourly_cap }}"
         fi
         MODEL_ARG=""
         if [ -n "${{ inputs.model }}" ]; then MODEL_ARG="--model ${{ inputs.model }}"; fi
