@@ -44,6 +44,8 @@ jobs:
 
       - name: Compare upstream release against the playbook baseline
         id: cmp
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           UP=$(curl -fsSL "https://raw.githubusercontent.com/$UPSTREAM/main/VERSIONS.md" \
             | grep -oE '\*\*Current release\*\*: `[0-9]+\.[0-9]+\.[0-9]+`' \
@@ -59,9 +61,17 @@ jobs:
           if [ "$UP" = "$BASE" ]; then
             echo "drifted=false" >> "$GITHUB_OUTPUT"
             echo "::notice::baseline $BASE matches upstream — nothing to do"
-          elif git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+          # Ask for the PR, not the branch. They are pushed in the same step, so
+          # "branch exists" reads like "PR exists" — until the push lands and the
+          # PR call fails (repo Actions-PR switch off, expired token, API blip).
+          # That leaves a branch with no PR, and keying off the branch would make
+          # every later run report "PR pending review" and skip forever, green.
+          # --state all: an already-reviewed drift stays closed, including one a
+          # human deliberately rejected; only a never-proposed drift reopens work.
+          elif [ "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" \
+                      --state all --json number --jq 'length')" -gt 0 ]; then
             echo "drifted=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::drift $BASE → $UP already has branch $BRANCH — PR pending review"
+            echo "::notice::drift $BASE → $UP already has a PR for $BRANCH — nothing to do"
           else
             echo "drifted=true"  >> "$GITHUB_OUTPUT"
             echo "::warning::aaron-marketing drifted: playbook $BASE, upstream $UP"
@@ -154,7 +164,12 @@ jobs:
           git switch -c "$BRANCH"
           git add -A
           git commit -m "chore: rebaseline aaron-marketing $BASE -> $UP"
-          git push -u origin "$BRANCH"
+          # Force is safe here and necessary: detect only lets this job start when
+          # NO PR exists for $BRANCH in any state, so a remote branch at this point
+          # is debris from a run that died at or before PR creation — unreviewed,
+          # and just regenerated from scratch above. A plain push would be rejected
+          # non-fast-forward and turn last week's silent skip into a weekly red X.
+          git push --force -u origin "$BRANCH"
           BODY=$(mktemp)
           if [ -f /tmp/rebaseline-summary.md ]; then
             cp /tmp/rebaseline-summary.md "$BODY"
