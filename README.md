@@ -1,10 +1,68 @@
-English | [简体中文](README.zh-CN.md)
+<div align="center">
+
+<img src="assets/workflow.svg" alt="blog-marketing-skills — schedule, generate, optimize, pull request, merge" width="100%">
 
 # blog-marketing-skills
 
+**Claude Code skills that write and optimize blog posts, then hand you a pull request.**
+
+English · [简体中文](README.zh-CN.md)
+
+[![version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcazerme%2Fblog-marketing-skills%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&label=version&style=for-the-badge&labelColor=3f3f46&color=1f8ceb)](.claude-plugin/plugin.json)
+[![license](https://img.shields.io/badge/license-MIT-3fa62a?style=for-the-badge&labelColor=3f3f46)](LICENSE)
+[![works with](https://img.shields.io/badge/works%20with-CLAUDE%20CODE-d97757?style=for-the-badge&labelColor=3f3f46)](https://claude.com/claude-code)
+<br>
+[![tested against](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcazerme%2Fblog-marketing-skills%2Fmain%2Foptimize%2Faction.yml&query=%24.inputs.aaron_version.default&label=tested%20against&prefix=aaron-marketing%20&style=for-the-badge&labelColor=3f3f46&color=8a2be2)](skills/blog-seo-geo/references/pipeline-playbook.md)
+[![github action](https://img.shields.io/badge/github%20action-MARKETPLACE-2088ff?style=for-the-badge&labelColor=3f3f46)](https://github.com/marketplace/actions/roadtrip-blog-generator)
+[![PRs](https://img.shields.io/badge/PRs-WELCOME-8a2be2?style=for-the-badge&labelColor=3f3f46)](https://github.com/cazerme/blog-marketing-skills/pulls)
+
+</div>
+
 Claude Code skills that optimize blog posts for **SEO** (Google rankings) and **GEO** (getting cited by AI engines like Gemini). Built on top of the open-source [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) skill pack: this plugin orchestrates its auditing/writing skills and adds a deterministic, fail-closed engine for safely editing your HTML or Markdown files in place.
 
-> **Status: v0.9.** Three GitHub Actions + one skill (`blog-seo-geo`) + one agent (`roadtrip-blogger`). See [Scope](#scope-v04) for exactly what the skill does and refuses to do.
+> Three GitHub Actions + one skill (`blog-seo-geo`) + one agent (`roadtrip-blogger`). See [Scope](#scope-v04) for exactly what the skill does and refuses to do.
+
+## How it works
+
+```mermaid
+flowchart LR
+    S([schedule<br/>or manual])
+
+    subgraph GEN["roadtrip-blogger"]
+        direction TB
+        G[read your site's<br/>publishing convention] --> G2[3-level dedup gate<br/>via .coverage.md]
+        G2 --> G3[write the post]
+    end
+
+    subgraph OPT["blog-seo-geo"]
+        direction TB
+        P[parse into blocks<br/>+ mechanical score] --> A1[on-page-seo-checker]
+        A1 --> A2[content-writer]
+        A2 --> A3[geo-content-optimizer]
+        A3 --> A4[serp-markup-builder]
+    end
+
+    C{fail-closed<br/>integrity check}
+    PR[pull request<br/>report as the body]
+    N[nothing written]
+    M([you review<br/>and merge])
+
+    S --> G
+    G3 --> P
+    A4 --> C
+    C -->|pass| PR
+    C -->|refuse| N
+    PR --> M
+
+    classDef aaron fill:#fef7e0,stroke:#f9ab00,color:#3c4043
+    classDef stop fill:#fce8e6,stroke:#d93025,color:#3c4043
+    classDef done fill:#e6f4ea,stroke:#1e8e3e,color:#3c4043
+    class A1,A2,A3,A4 aaron
+    class N stop
+    class PR,M done
+```
+
+The four amber steps are [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) sub-skills — the editorial judgment. Everything else is this plugin's deterministic engine. Nothing is ever pushed to your default branch.
 
 ## The roadtrip-blogger agent
 

@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 540" width="1200" height="540" role="img" aria-labelledby="t d">
+  <title id="t">blog-marketing-skills — from schedule to published post</title>
+  <desc id="d">A road running left to right with five numbered stops: schedule (cron or manual), generate (roadtrip-blogger), optimize (blog-seo-geo), pull request (the change report becomes the body), and merge, which you decide.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#12100e"/>
+      <stop offset="55%" stop-color="#171310"/>
+      <stop offset="100%" stop-color="#241a12"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.8" cy="0.75" r="0.6">
+      <stop offset="0%" stop-color="#e8a765" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#e8a765" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="road" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2b2521" stop-opacity="0.35"/>
+      <stop offset="22%" stop-color="#39312b"/>
+      <stop offset="100%" stop-color="#4a3f36"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e8b071" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#e8b071" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="card"><rect width="1200" height="540" rx="14"/></clipPath>
+    <style>
+      .f { font-family: ui-sans-serif, -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; }
+      .m { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+      .h { font-size: 44px; font-weight: 700; fill: #f7f1e8; letter-spacing: -0.9px; }
+      .sub { font-size: 19px; fill: #a99e91; }
+      .word { font-size: 15px; font-weight: 600; fill: #f7f1e8; letter-spacing: 3.2px; }
+      .meta { font-size: 11.5px; fill: #7e756a; letter-spacing: 2.4px; }
+      .cmd { font-size: 14.5px; fill: #e8b071; }
+      .stop { font-size: 12px; font-weight: 700; fill: #cbbfaf; letter-spacing: 2.2px; }
+      .sn { font-size: 13px; font-weight: 700; fill: #1c1713; }
+      .cap { font-size: 11px; fill: #8b8175; letter-spacing: 1.4px; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="540" rx="14" fill="url(#bg)"/>
+  <rect width="1200" height="540" rx="14" fill="url(#glow)"/>
+
+  <!-- wordmark -->
+  <g transform="translate(64 62)">
+    <rect x="0" y="-13" width="46" height="26" rx="13" fill="#f7f1e8"/>
+    <circle cx="13" cy="0" r="6.5" fill="#1c1713"/>
+    <text class="f word" x="62" y="5">BLOG-MARKETING-SKILLS</text>
+  </g>
+
+  <!-- headline -->
+  <text class="f h" x="64" y="158">Write it. Optimize it.</text>
+  <text class="f h" x="64" y="206">Ship it as a pull request.</text>
+  <rect x="64" y="228" width="118" height="3" rx="1.5" fill="url(#rule)"/>
+
+  <text class="f sub" x="64" y="268">SEO for Google, GEO for AI engines —</text>
+  <text class="f sub" x="64" y="294">in your blog's own format and voice.</text>
+
+  <!-- install command -->
+  <g transform="translate(64 322)">
+    <rect x="0" y="0" width="486" height="42" rx="9" fill="#0d0b09" stroke="#3a322b"/>
+    <text class="m cmd" x="17" y="27"><tspan fill="#6f665c">$</tspan> /plugin install blog-marketing</text>
+  </g>
+
+  <text class="f meta" x="64" y="396">MIT · NEVER PUSHES TO MAIN</text>
+
+  <!-- ── the road ── -->
+  <g clip-path="url(#card)">
+    <path d="M -20 512 C 220 507, 380 492, 560 464 S 900 408, 1090 372 L 1230 344"
+          fill="none" stroke="url(#road)" stroke-width="46" stroke-linecap="round"/>
+    <path d="M -20 512 C 220 507, 380 492, 560 464 S 900 408, 1090 372 L 1230 344"
+          fill="none" stroke="#efe4d4" stroke-width="2.4" stroke-opacity="0.5"
+          stroke-dasharray="16 17" stroke-linecap="round"/>
+  </g>
+
+  <!-- stops -->
+  <g class="f">
+    <g transform="translate(150 504)">
+      <text class="stop" x="0" y="-40" text-anchor="middle">SCHEDULE</text>
+      <text class="cap" x="0" y="-24" text-anchor="middle">cron / manual</text>
+      <circle r="15" fill="#f7f1e8"/><text class="sn" y="4.5" text-anchor="middle">1</text>
+    </g>
+    <g transform="translate(402 485)">
+      <text class="stop" x="0" y="-40" text-anchor="middle">GENERATE</text>
+      <text class="cap" x="0" y="-24" text-anchor="middle">roadtrip-blogger</text>
+      <circle r="15" fill="#f7f1e8"/><text class="sn" y="4.5" text-anchor="middle">2</text>
+    </g>
+    <g transform="translate(654 454)">
+      <text class="stop" x="0" y="-40" text-anchor="middle">OPTIMIZE</text>
+      <text class="cap" x="0" y="-24" text-anchor="middle">blog-seo-geo</text>
+      <circle r="15" fill="#f7f1e8"/><text class="sn" y="4.5" text-anchor="middle">3</text>
+    </g>
+    <g transform="translate(898 413)">
+      <text class="stop" x="0" y="-40" text-anchor="middle">PULL REQUEST</text>
+      <text class="cap" x="0" y="-24" text-anchor="middle">report as the body</text>
+      <circle r="15" fill="#f7f1e8"/><text class="sn" y="4.5" text-anchor="middle">4</text>
+    </g>
+    <g transform="translate(1128 370)">
+      <text class="stop" x="0" y="-40" text-anchor="middle">MERGE</text>
+      <text class="cap" x="0" y="-24" text-anchor="middle">you decide</text>
+      <circle r="16.5" fill="#e8b071"/><text class="sn" y="4.5" text-anchor="middle">5</text>
+    </g>
+  </g>
+</svg>
