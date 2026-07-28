@@ -1,10 +1,68 @@
-[English](README.md) | 简体中文
+<div align="center">
+
+<img src="assets/workflow.svg" alt="blog-marketing-skills — 定时、生成、优化、提 PR、合并" width="100%">
 
 # blog-marketing-skills
 
+**会写博客、也会做 SEO 优化的 Claude Code 技能——写完直接给你一个 Pull Request。**
+
+[English](README.md) · 简体中文
+
+[![version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcazerme%2Fblog-marketing-skills%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&label=version&style=for-the-badge&labelColor=3f3f46&color=1f8ceb)](.claude-plugin/plugin.json)
+[![license](https://img.shields.io/badge/license-MIT-3fa62a?style=for-the-badge&labelColor=3f3f46)](LICENSE)
+[![works with](https://img.shields.io/badge/works%20with-CLAUDE%20CODE-d97757?style=for-the-badge&labelColor=3f3f46)](https://claude.com/claude-code)
+<br>
+[![tested against](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcazerme%2Fblog-marketing-skills%2Fmain%2Foptimize%2Faction.yml&query=%24.inputs.aaron_version.default&label=tested%20against&prefix=aaron-marketing%20&style=for-the-badge&labelColor=3f3f46&color=8a2be2)](skills/blog-seo-geo/references/pipeline-playbook.md)
+[![github action](https://img.shields.io/badge/github%20action-MARKETPLACE-2088ff?style=for-the-badge&labelColor=3f3f46)](https://github.com/marketplace/actions/roadtrip-blog-generator)
+[![PRs](https://img.shields.io/badge/PRs-WELCOME-8a2be2?style=for-the-badge&labelColor=3f3f46)](https://github.com/cazerme/blog-marketing-skills/pulls)
+
+</div>
+
 为博客文章做 **SEO**（Google 排名）和 **GEO**（被 Gemini 这类 AI 引擎引用）优化的 Claude Code 技能。构建在开源技能包 [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) 之上：本插件负责编排它的审计/写作技能，并自带一套确定性的、fail-closed 的引擎，安全地原地修改你的 HTML 或 Markdown 文件。
 
-> **状态：v0.9。** 三个 GitHub Action + 一个技能（`blog-seo-geo`）+ 一个 agent（`roadtrip-blogger`）。技能的能力与边界见[能力边界](#能力边界v04)。
+> 三个 GitHub Action + 一个技能（`blog-seo-geo`）+ 一个 agent（`roadtrip-blogger`）。技能的能力与边界见[能力边界](#能力边界v04)。
+
+## 工作流
+
+```mermaid
+flowchart LR
+    S([定时触发<br/>或手动])
+
+    subgraph GEN["roadtrip-blogger"]
+        direction TB
+        G[读取你站点的<br/>发布约定] --> G2[三级去重门禁<br/>基于 .coverage.md]
+        G2 --> G3[写出文章]
+    end
+
+    subgraph OPT["blog-seo-geo"]
+        direction TB
+        P[拆成内容块<br/>+ 机械评分] --> A1[on-page-seo-checker]
+        A1 --> A2[content-writer]
+        A2 --> A3[geo-content-optimizer]
+        A3 --> A4[serp-markup-builder]
+    end
+
+    C{fail-closed<br/>完整性校验}
+    PR[Pull Request<br/>正文就是变更报告]
+    N[什么都不写]
+    M([你来审阅<br/>并合并])
+
+    S --> G
+    G3 --> P
+    A4 --> C
+    C -->|通过| PR
+    C -->|拒绝| N
+    PR --> M
+
+    classDef aaron fill:#fef7e0,stroke:#f9ab00,color:#3c4043
+    classDef stop fill:#fce8e6,stroke:#d93025,color:#3c4043
+    classDef done fill:#e6f4ea,stroke:#1e8e3e,color:#3c4043
+    class A1,A2,A3,A4 aaron
+    class N stop
+    class PR,M done
+```
+
+四个琥珀色步骤是 [aaron-marketing](https://github.com/aaron-he-zhu/aaron-marketing-skills) 的子技能——负责编辑判断；其余都是本插件的确定性引擎。**任何情况下都不会直推你的默认分支。**
 
 ## roadtrip-blogger agent
 
