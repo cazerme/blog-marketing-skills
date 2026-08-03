@@ -5,7 +5,7 @@ invokes. When upstream aaron-marketing releases a new major version, re-verify
 each row here (names, modes, expected outputs) — nothing else in this repo
 talks to aaron-marketing.
 
-**Tested against: aaron-marketing 19.0.0.** These are natural-language
+**Tested against: aaron-marketing 19.1.0.** These are natural-language
 contracts, not APIs: sub-skill output shapes can drift between versions.
 If a call point misbehaves, compare against this table before changing SKILL.md.
 (The version in the line above is machine-read by the rebaseline workflow and
@@ -20,7 +20,7 @@ wording when updating it.)
 | 3 | `aaron-marketing:geo-content-optimizer` | Gemini-style AI citation | post-rewrite content, keyword | quotable block rewrites (by `block_id`) + optional FAQ/answer insertions (by `after_block_id`) | 5 |
 | 4 | `aaron-marketing:serp-markup-builder` | **both** modes: `meta` + `schema` | post-rewrite content, keyword | title tag, meta description, OG/Twitter block, JSON-LD (Article/BlogPosting, FAQPage only if a real FAQ exists) | 6 |
 
-Call-point notes (verified against 19.0.0):
+Call-point notes (verified against 19.1.0):
 
 - **1** — renamed upstream in 18.0.0 (see Known renames); the contract itself is
   unchanged from the 16.x `on-page-seo-auditor`.
@@ -38,6 +38,19 @@ Call-point notes (verified against 19.0.0):
   added, removed, merged, or renamed," and all four `SKILL.md` files here are
   byte-identical between 18.0.0 and 19.0.0 except the `version` field. No
   contract, mode, or path changes to absorb.
+- **19.1.0 re-verification** — upstream's 19.1.0 release ("progressive context
+  disclosure and host-aware harnessing") is a version-only bump for three of
+  the four call points: `content-writer`, `serp-markup-builder`, and
+  `on-page-seo-checker`'s `SKILL.md` are byte-identical between 19.0.0 and
+  19.1.0 except the `version` field, and no skill was added, removed, merged,
+  or renamed. **3**'s `geo-content-optimizer/SKILL.md` also has no contract
+  change, but its linked `references/ai-citation-patterns.md` was rewritten:
+  it now documents per-provider crawler/retrieval controls sourced from each
+  provider's own docs instead of citation-count/lift-percentage claims, folds
+  Bing into a "Bing-backed Copilot Studio" surface, and drops Grok as a
+  covered engine. This is deeper editorial background for the sub-skill, not
+  a change to what it expects as input or promises as output — no call-point
+  edit needed.
 
 ## Known renames
 

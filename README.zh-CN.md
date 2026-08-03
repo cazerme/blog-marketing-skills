@@ -264,4 +264,4 @@ claude plugin validate .              # 清单校验
 
 ## 许可证
 
-MIT。基于 aaron-marketing 19.0.0 测试（action 默认安装这个上游版本，可用 `aaron_version` 输入覆盖）。
+MIT。基于 aaron-marketing 19.1.0 测试（action 默认安装这个上游版本，可用 `aaron_version` 输入覆盖）。
