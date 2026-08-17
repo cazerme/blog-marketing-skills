@@ -5,7 +5,7 @@ invokes. When upstream aaron-marketing releases a new major version, re-verify
 each row here (names, modes, expected outputs) — nothing else in this repo
 talks to aaron-marketing.
 
-**Tested against: aaron-marketing 19.0.0.** These are natural-language
+**Tested against: aaron-marketing 19.2.0.** These are natural-language
 contracts, not APIs: sub-skill output shapes can drift between versions.
 If a call point misbehaves, compare against this table before changing SKILL.md.
 (The version in the line above is machine-read by the rebaseline workflow and
@@ -38,6 +38,16 @@ Call-point notes (verified against 19.0.0):
   added, removed, merged, or renamed," and all four `SKILL.md` files here are
   byte-identical between 18.0.0 and 19.0.0 except the `version` field. No
   contract, mode, or path changes to absorb.
+- **19.2.0 re-verification** — the only release tag between 19.0.0 and 19.2.0
+  is 19.2.0 itself (no 19.1.0 was cut). Its changelog is an "Agent Plugins v1
+  Portable Lite delivery" (packaging/distribution only): "the same 120
+  canonical skills... remain intact." All four `SKILL.md` files (same paths:
+  `seo-geo/tune/on-page-seo-checker`, `seo-geo/implement/{content-writer,
+  geo-content-optimizer,serp-markup-builder}`) are unchanged between 19.0.0
+  and 19.2.0 except the `version` field, plus one non-contractual reference-doc
+  blurb rewording inside `geo-content-optimizer` (its `ai-citation-patterns.md`
+  link description). No renames, no mode changes, no new mandatory behavior,
+  no path changes to absorb.
 
 ## Known renames
 
