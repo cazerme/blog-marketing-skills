@@ -5,7 +5,7 @@ invokes. When upstream aaron-marketing releases a new major version, re-verify
 each row here (names, modes, expected outputs) — nothing else in this repo
 talks to aaron-marketing.
 
-**Tested against: aaron-marketing 19.0.0.** These are natural-language
+**Tested against: aaron-marketing 20.0.0.** These are natural-language
 contracts, not APIs: sub-skill output shapes can drift between versions.
 If a call point misbehaves, compare against this table before changing SKILL.md.
 (The version in the line above is machine-read by the rebaseline workflow and
@@ -38,6 +38,19 @@ Call-point notes (verified against 19.0.0):
   added, removed, merged, or renamed," and all four `SKILL.md` files here are
   byte-identical between 18.0.0 and 19.0.0 except the `version` field. No
   contract, mode, or path changes to absorb.
+- **20.0.0 re-verification** — two upstream releases sit between 19.0.0 and
+  20.0.0: 19.2.0 ("Agent Plugins v1 Portable Lite delivery", 2026-08-09) and
+  20.0.0 ("AI Staff positioning", 2026-08-20). Both changelogs state the same
+  120 canonical skills remain intact — no skill was added, removed, merged,
+  or renamed. Confirmed directly: all four call-point paths are unchanged
+  between the v19.0.0 and v20.0.0 upstream trees, and their `SKILL.md` files
+  are identical except the `version`/`metadata.version` fields (19.0.0 →
+  20.0.0). The only other diff is cosmetic: `geo-content-optimizer`'s
+  reference-index line for `ai-citation-patterns.md` was reworded
+  ("evidence-bounded discovery, retrieval, and citation controls" instead of
+  "per-engine source selection across 9 engines") — a description of that
+  skill's own internal reference doc, not a change to what it expects from or
+  returns to this pipeline. No contract, mode, or path changes to absorb.
 
 ## Known renames
 
