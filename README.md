@@ -145,6 +145,8 @@ It runs the `blog-seo-geo` skill (installing its aaron-marketing dependency on t
 
 Text-only posts get images from [Waybox's `blog-smart-images`](https://github.com/Zora-waybox/blog-image-skill) skill — image slots planned from the post's structure, candidates sourced from **licensed inputs only**, each scored against an 8-dimension aesthetic rubric with a style-fit gate, then inserted as hero + section figures. It **never edits prose**: every write is insert-only, `.bak`-backed and fail-closed, which is what makes it safe to run after `blog-seo-geo`.
 
+What lands in the post is plain semantic markup — `<figure><img src alt width height loading><figcaption>` — with **no site-specific classes**. Your page template needs its own rule for it (`figure img{max-width:100%;height:auto}` at minimum); a template that only styles its own hand-authored photo class will render inserted images at their intrinsic width and blow out the column.
+
 ```yaml
       - uses: cazerme/blog-marketing-skills/illustrate@v1
         with:

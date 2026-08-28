@@ -227,7 +227,11 @@ runs:
         if [ -n "$SRC_PREFIX" ]; then
           PREFIX_LINE="IMPORTANT — image src: reference every image you insert as ${SRC_PREFIX}/<filename>, exactly that prefix plus the exported file name. Do NOT use a path relative to the post file: this post is served at a different URL depth than the file sits at, so a post-relative src would 404 for every reader. Write the files themselves to ${IMAGES_DIR:-the default images dir} as usual."
         fi
-        claude -p "Run the blog-smart-images skill on ${ARGS}. ${STYLE_LINE} ${PREFIX_LINE} Follow its SKILL.md exactly, including the licensing rules, the scoring gates, and the insert-only write path. Do not commit — git is handled outside." \
+        # Not a knob: intrinsic dimensions stop layout shift on any site, and the
+        # hero is above the fold on every one. The skill's documented figure
+        # shape (<figure><img src alt><figcaption>) carries neither attribute.
+        DIMS_LINE="IMPORTANT — image attributes: every <img> you insert must carry explicit width and height attributes in pixels, matching the exported file's own dimensions, so the page reserves the space and does not shift as the image loads. Keep the lazy-loading attribute on the section figures, but leave it off the hero — it is above the fold, and lazy-loading it delays the largest contentful paint."
+        claude -p "Run the blog-smart-images skill on ${ARGS}. ${STYLE_LINE} ${PREFIX_LINE} ${DIMS_LINE} Follow its SKILL.md exactly, including the licensing rules, the scoring gates, and the insert-only write path. Do not commit — git is handled outside." \
           $MODEL_ARG \
           --allowedTools "Skill,Bash,Read,Write,Edit,Grep,Glob,WebSearch,WebFetch" \
           --max-turns 100
