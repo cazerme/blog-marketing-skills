@@ -57,7 +57,7 @@ inputs:
   aaron_version:
     description: "aaron-marketing version to install (git tag v<version> of aaron_ref). Defaults to the playbook-tested baseline; set '' to install latest (unpinned)."
     required: false
-    default: "19.0.0"
+    default: "19.1.0"
   illustrate:
     description: "Add images after the SEO/GEO pass (Waybox's blog-smart-images skill), so the single PR carries a post that is written, optimized and illustrated. Off by default: it needs a stock photo key and spends extra tokens on visual scoring."
     required: false
