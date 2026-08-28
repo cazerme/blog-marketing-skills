@@ -145,6 +145,8 @@ SEO/GEO 优化器以**子 action** 形式住在同一仓库（GA Marketplace 一
 
 给纯文字文章配图，背后是 [Waybox 的 `blog-smart-images`](https://github.com/Zora-waybox/blog-image-skill) 技能：按文章结构规划图位，**仅从有授权的来源**取素材，用 8 维美学评分 + 风格契合门槛逐张打分，然后插入头图和章节配图。它**从不改动正文**——所有写入都是仅插入式、带 `.bak`、失败即停，这正是它能安全地跑在 `blog-seo-geo` 之后的原因。
 
+插进文章里的是朴素的语义化标记——`<figure><img src alt width height loading><figcaption>`——**不带任何站点专有的 class**。你的页面模板得自己有一条对应规则（至少 `figure img{max-width:100%;height:auto}`）；只给自己手写的图片 class 写了样式的模板，会让插入的图按固有宽度渲染，撑破正文栏。
+
 ```yaml
       - uses: cazerme/blog-marketing-skills/illustrate@v1
         with:
