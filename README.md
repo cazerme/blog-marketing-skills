@@ -282,4 +282,4 @@ claude plugin validate .              # manifest check
 
 ## License
 
-MIT. Tested against aaron-marketing 19.1.0 (the actions install that exact upstream version by default — override with the `aaron_version` input).
+MIT. Tested against aaron-marketing 20.1.0 (the actions install that exact upstream version by default — override with the `aaron_version` input).
