@@ -1,7 +1,7 @@
 ---
 name: blog-seo-geo
 description: 'Optimize a local blog post file (HTML or Markdown) for SEO and GEO (AI-citation readiness): parse into blocks, audit with aaron-marketing:on-page-seo-checker, rewrite blocks with aaron-marketing:content-writer, make content citation-ready with aaron-marketing:geo-content-optimizer, build head markup with aaron-marketing:serp-markup-builder, write the file back safely (backup + fail-closed integrity checks), and emit a change report. Handles full HTML documents, body fragments, and Markdown posts with YAML front matter (Jekyll/Hugo/GitHub Pages style); code fences and embedded HTML in markdown are never touched. Use when the user asks to optimize a blog post, improve a post''s SEO, or make a post more citable by AI engines. Input is a path to an .html or .md file whose article content is in the file. Not for live URLs, SPA/build-artifact HTML, or site-level technical SEO.'
-version: "0.7.0"
+version: "0.8.0"
 license: MIT
 argument-hint: "<path/to/post.html|.md> [target keyword]"
 allowed-tools: Read, Write, Bash, Skill
@@ -66,6 +66,8 @@ Invoke `aaron-marketing:content-writer` in **refresh mode**. Provide:
 - the red lines from the Contract (no new facts; preserve inline links/images verbatim; keep the author's voice; English; **keep every figure exactly as the original writes it** — the engine refuses any plan containing a number that does not appear in the original document, so no rounding, reformatting, or "improving" statistics)
 - the output format: rewritten content must be **markdown for `.md` inputs, HTML for `.html` inputs** — same syntax the block already uses (heading rewrites are text-only: the engine preserves `##`/tag prefixes itself)
 - instruction: propose rewrites **only for blocks that fix a finding** — an unchanged block is a valid outcome; also propose `title` / `meta_description` text if the audit flags them.
+
+Since aaron-marketing 20.1.0, this sub-skill's handoff summary may also include `page_ref`/`content_version`/`content_sha256`/`change_ref` (an evidence-binding protocol for its own multi-day readback/index-receipt workflows). This pipeline has no page registry or prior-version hash to feed it and doesn't run readback windows or index submission — ignore those fields in the response, same as the narrative/claims ones.
 
 ## Step 5 — GEO pass (call point 3)
 

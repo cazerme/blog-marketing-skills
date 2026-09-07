@@ -5,7 +5,7 @@ invokes. When upstream aaron-marketing releases a new major version, re-verify
 each row here (names, modes, expected outputs) — nothing else in this repo
 talks to aaron-marketing.
 
-**Tested against: aaron-marketing 19.1.0.** These are natural-language
+**Tested against: aaron-marketing 20.1.0.** These are natural-language
 contracts, not APIs: sub-skill output shapes can drift between versions.
 If a call point misbehaves, compare against this table before changing SKILL.md.
 (The version in the line above is machine-read by the rebaseline workflow and
@@ -51,6 +51,55 @@ Call-point notes (verified against 19.1.0):
   covered engine. This is deeper editorial background for the sub-skill, not
   a change to what it expects as input or promises as output — no call-point
   edit needed.
+- **Tag anomaly** — upstream never cut a `v19.1.0` git tag (`gh api
+  repos/aaron-he-zhu/aaron-marketing-skills/tags` lists `v19.0.0` then jumps to
+  `v19.2.0`), even though `VERSIONS.md` documents a `19.1.0` "Progressive
+  context disclosure and host-aware harnessing" release dated 2026-08-01. The
+  19.1.0 bullet above (already in this file pre-rebaseline) was verified
+  against that changelog entry plus a `v19.0.0` vs `v19.2.0` diff, which
+  isolates the 19.1.0-only change to exactly the `geo-content-optimizer`
+  reference rewrite described above — nothing else moved between those two
+  tags. Not a call-point problem, just a note for whoever runs the next
+  rebaseline: don't expect `git checkout v19.1.0` to work.
+- **19.2.0 re-verification** — release theme is "Agent Plugins v1 Portable
+  Lite delivery" (a release-projection/packaging change: a stricter Agent
+  Plugins 1.0.0 output directory, no automatic MCP registration). All four
+  call points' `SKILL.md` files are byte-identical to `v19.0.0` except the
+  `version` field; no skill added, removed, merged, or renamed. No call-point
+  edit needed.
+- **20.0.0 re-verification** — release theme is "AI Staff positioning" (a
+  branding/README change: named-bot roster becomes a first-class install
+  surface, chief bot handle shortens to `aaron-chief`). All four call points'
+  `SKILL.md` files are byte-identical to `v19.2.0` except the `version` field.
+  No call-point edit needed.
+- **20.1.0 re-verification** — release theme is "Cross-discipline control
+  plane": 49 execution/measurement-heavy skills across the whole bundle adopt
+  a shared typed artifact protocol (evidence records, page/change bindings,
+  measurement contracts, index-submission receipts, cycle retros — see
+  `seo-geo/evaluate/performance-monitor/references/evidence-and-cycle-control.md`).
+  `on-page-seo-checker`, `geo-content-optimizer`, and `serp-markup-builder`
+  are byte-identical to `v20.0.0` except the `version` field — not among the
+  49. **2**'s `content-writer` picked up additive changes in **refresh mode
+  only**, confirmed non-blocking:
+  - `Reads` now also lists "stable page ref, prior content version/hash,
+    change ref" — phrased alongside the other already-optional refresh
+    inputs (traffic history, publish dates, competitor examples), and the
+    skill's own Decision Gates still say to continue silently on missing
+    analytics/history. Nothing new to feed; this pipeline has no page
+    registry or prior-version hash to offer, and the skill doesn't gate on
+    their absence.
+  - `Done when` now additionally reports `page_ref`, `content_version`,
+    `content_sha256`, and `change_ref` in the handoff summary, alongside the
+    pre-existing `narrative_canon_id` / `narrative_canon_version` /
+    `claims_projection_offset` / `dependency_status`. Purely additive output
+    — ignore the extra fields, same as we already ignore the narrative/claims
+    ones.
+  - The "Publish-time index push" guidance (indexnow/baidu submission) now
+    requires binding the intent to an exact `content_sha256` and treating
+    only an actual provider/HTTP response as a receipt. This pipeline never
+    invokes that index-push path (no live publish step here), so it's
+    inert for this call point.
+  No call-point edit needed for **1**, **3**, or **4**.
 
 ## Known renames
 
