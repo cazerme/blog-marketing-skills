@@ -5,7 +5,7 @@ invokes. When upstream aaron-marketing releases a new major version, re-verify
 each row here (names, modes, expected outputs) — nothing else in this repo
 talks to aaron-marketing.
 
-**Tested against: aaron-marketing 19.1.0.** These are natural-language
+**Tested against: aaron-marketing 20.2.0.** These are natural-language
 contracts, not APIs: sub-skill output shapes can drift between versions.
 If a call point misbehaves, compare against this table before changing SKILL.md.
 (The version in the line above is machine-read by the rebaseline workflow and
@@ -51,6 +51,48 @@ Call-point notes (verified against 19.1.0):
   covered engine. This is deeper editorial background for the sub-skill, not
   a change to what it expects as input or promises as output — no call-point
   edit needed.
+- **20.2.0 re-verification (covers 19.2.0, 20.0.0, 20.1.0, 20.2.0)** — the
+  19.1.0 tag this playbook was previously pinned to no longer exists upstream
+  (confirmed via the GitHub API: absent from both tags and releases; its
+  successor tag is 19.2.0). Because the 19.1.0 re-verification above already
+  established that 19.0.0 and 19.1.0 are contract-identical for all four call
+  points, 19.0.0 is used as the pre-range baseline for this diff. Upstream's
+  changelog headlines across the range are a distribution/positioning
+  reshuffle (19.2.0, "Agent Plugins v1 Portable Lite delivery"), a branding
+  pass (20.0.0, "AI Staff positioning"), a cross-discipline data-protocol
+  rollout (20.1.0, "Cross-discipline control plane"), and a maintenance
+  simplification (20.2.0, "v3 simplification"). None of the four "Current
+  release" paragraphs declares a skill rename, merge, split, or removal, and
+  all four call points still live at their 19.0.0 paths and names
+  (`seo-geo/tune/on-page-seo-checker`,
+  `seo-geo/implement/{content-writer,geo-content-optimizer,serp-markup-builder}`).
+  Diffing each call point's `SKILL.md` at 19.0.0 vs. 20.2.0 directly:
+  - **1** (`on-page-seo-checker`) and **4** (`serp-markup-builder`) — version/
+    metadata fields only; zero body changes. No contract edit needed.
+  - **3** (`geo-content-optimizer`) — same zero-contract-change pattern as
+    19.1.0: only the one-line description of the linked
+    `references/ai-citation-patterns.md` was reworded again (now
+    "evidence-bounded discovery, retrieval, and citation controls" across
+    Google AI features/ChatGPT Search/Perplexity/Claude/Gemini
+    grounding/Copilot Studio/Brave Search, replacing the old 9-engine list).
+    Editorial background only; Reads/Writes/Done-when are unchanged.
+  - **2** (`content-writer`, refresh mode) — two additive changes, both
+    non-blocking for this pipeline:
+    1. The `Reads` and `Done when` lines now reference a new
+       cross-discipline live-page tracking protocol (`page_ref`,
+       `content_version`, `content_sha256`, `change_ref` — see upstream's new
+       `evaluate/performance-monitor/references/evidence-and-cycle-control.md`),
+       which binds a traffic/ranking outcome claim to a specific page edit
+       over a readback window. This plugin edits a local file once and never
+       tracks live traffic, rankings, or readback windows, so these fields
+       are inapplicable; they fall under the skill's existing "continue
+       silently — score decay from on-page signals, label Estimated, proceed"
+       rule for data we don't supply. No change to what we feed the skill.
+    2. The "Publish-time index push" paragraph (IndexNow/Baidu) picked up
+       stricter receipt language (bind to URL/engine/method/`content_sha256`;
+       a dry run or request body is not a receipt). This plugin never
+       exercises that feature — we don't push to a live index. No action
+       needed.
 
 ## Known renames
 
